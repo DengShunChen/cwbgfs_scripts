@@ -1,0 +1,19 @@
+ &setup
+ nfile=14,
+ &end
+ &file_input
+ dfile(01)='uvusdgs',  dtype(01)='uvusdgs',
+ dfile(02)='uvupdgs',  dtype(02)='uvupdgs',
+ dfile(03)='uvuadgs',  dtype(03)='uvuadgs',
+ dfile(04)='uvtsdgs',  dtype(04)='uvtsdgs',
+ dfile(05)='uvuxdgs',  dtype(05)='uvuxdgs',
+ dfile(06)='uvukdgs',  dtype(06)='uvukdgs',
+ dfile(07)='tqusdgs',  dtype(07)='tusdgs',
+ dfile(08)='tquxdgs',  dtype(08)='quxdgs',
+ dfile(09)='tqukdgs',  dtype(09)='tukdgs',
+ dfile(10)='tqusdgs',  dtype(10)='qusdgs',
+ dfile(11)='tquxdgs',  dtype(11)='quxdgs',
+ dfile(12)='tqukdgs',  dtype(12)='qukdgs',
+ dfile(13)='ECDMS',  dtype(13)='tec2',
+ dfile(14)='ECDMS',  dtype(14)='uvec2',
+ &end

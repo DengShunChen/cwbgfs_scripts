@@ -1,0 +1,11 @@
+ &filst
+ ifilin='MASOPS',
+ ifilout='RELOCATE',
+ cwbout='tmp/cwboutgfs0',
+ bckfile='BCKOPS',
+ phyout='tmp/phyoutgfs0',
+ namlsts='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/namlsts_typ',
+ crdate='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/crdate',
+ ocards='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/ocards',
+ mapfn=' ',
+ &end

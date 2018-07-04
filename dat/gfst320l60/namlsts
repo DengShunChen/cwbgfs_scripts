@@ -1,0 +1,78 @@
+ &model_param
+ nx= 960,
+ lev= 60,
+ ncld= 3,
+ nout= 6000,
+ io_quilting=t,
+ &end
+
+ &modlst
+ taui=0.0,
+ taue=12.0,
+ tauo=1.0,
+ taup=6.0,
+ taureg=12.0,
+ dt=180.0,
+ cstar=f,
+ update=t,
+ lzadv=t,
+ lsimpl=t,
+ tfilt=0.05,
+ hfilt=1.7556e14,
+ ksgeo=2,
+ yesdia=t,
+ dopbl=t,
+ docup=t,
+ dorad=t,
+ dolsp=t,
+ doshl=t,
+ dodry=f,
+ dograv=t,
+ donnmi=t,
+ cutfreq=3,
+ nnmivm=3,
+ doincr=t,
+ hdiff=t,
+ frad=1.0,
+ ldiag=0,
+ idg=40,
+ jdg=108,
+ itypbl=0,
+ numreduce=8,
+ ptmeans=800.,
+ ptop=0.1,
+ nmcup=3,
+ nmpbl=3,
+ nmland=2,
+ nmshl=2,
+ ktcup=20,
+ cgw=1.2e-4,
+ doo3l=t,
+ irad=2,
+ ioutsigr=1,
+ domfc=f,
+ ggdef='gg0g',
+ gmdef='ggmg',
+ &end
+
+
+ hfilt=6.6295e12,(o4:1 hour)
+ hfilt=8.8393e12,(o4:0.75 hour)
+ hfilt=1.3259e13,(o4:0.5 hour)
+ hfilt=2.6518e13,(o4:0.25 hour)
+ hfilt=5.3036e13,(o4:0.125 hour)
+ numreduce=-99,
+
+    for T319
+ nx=960,
+ dt=180.,
+ hfilt=1.7556e14,
+ ggdef='gg0g',
+ gmdef='ggmg',
+    for T511
+ nx=1536,
+ dt=90.,
+ hfilt=1.3259e13,
+ ggdef='gh0g',
+ gmdef='ghmg',
+

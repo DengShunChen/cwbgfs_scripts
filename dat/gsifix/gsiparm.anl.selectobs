@@ -1,0 +1,101 @@
+ &SETUP
+   miter=2,niter(1)=100,niter(2)=100,
+   niter_no_qc(1)=50,niter_no_qc(2)=0,
+   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
+   qoption=2,
+   gencode=82,factqmin=5.0,factqmax=0.005,deltim=240, clip_supersaturation=.true.,
+   iguess=-1,
+   nst_gsi=0,nst_tzr=0,nstinfo=0,fac_dtl=0,fac_tsl=0,
+   oneobtest=.false.,retrieval=.false.,l_foto=.false.,
+   use_pbl=.false.,use_compress=.true.,nsig_ext=12,gpstop=50.,
+   use_gfs_nemsio=.false.,lrun_subdirs=.true.,
+   crtm_coeffs_path='./crtm_coeffs/',
+   newpc4pred=.false.,adp_anglebc=.false.,angord=4,passive_bc=.true.,use_edges=.false.,
+   diag_precon=.true.,step_start=1.e-3,emiss_bc=.true.,thin4d=.false.,
+   miter=0,niter=1,lread_obs_save=.true.,lread_obs_skip=.false.,lwrite_predterms=.true.,lwrite_peakwt=.true.,reduce_diag=.true.,passive_bc=.false.,
+ /
+ &GRIDOPTS
+   JCAP_B=319,JCAP=319,NLAT=482,NLON=960,nsig=60,
+   regional=.false.,nlayers(59)=3,nlayers(60)=6,
+   
+ /
+ &BKGERR
+   vs=0.7,
+   hzscl=1.7,0.8,0.5,
+   hswgt=0.45,0.3,0.25,
+   bw=0.0,norsp=4,
+   bkgv_flowdep=.true.,bkgv_rewgtfct=1.5,
+   bkgv_write=.false.,
+   cwcoveqqcov=.false.,
+   bkgv_flowdep=.false.,
+ /
+&ANBKGERR
+   anisotropic=.false.,
+   
+ /
+ &JCOPTS
+   ljcdfi=.false.,alphajc=0.0,ljcpdry=.true.,bamp_jcpdry=5.0e7,
+   
+ /
+ &STRONGOPTS
+   tlnmc_option=2,nstrong=1,nvmodes_keep=8,period_max=6.,period_width=1.5,
+   tlnmc_option=0,nstrong=0,nvmodes_keep=0,baldiag_full=.false.,baldiag_inc=.false.,
+ /
+ &OBSQC
+   dfact=0.75,dfact1=3.0,noiqc=.true.,oberrflg=.false.,c_varqc=0.02,
+   use_poq7=.true.,qc_noirjaco3_pole=.true.,
+   aircraft_t_bc=.false.,biaspredt=1000.0,upd_aircraft=.false.,
+   tcp_width=60.0,tcp_ermin=2.0,tcp_ermax=12.0,qc_noirjaco3_pole=.true.,
+ /
+ &OBS_INPUT
+   dmesh(1)=145.0,dmesh(2)=150.0,dmesh(3)=100.0,time_window_max=3.0,
+   dmesh(1)=225.0,dmesh(2)=225.0,
+ /
+OBS_INPUT::
+!  dfile          dtype       dplat       dsis                dval    dthin dsfcalc
+   prepbufr       ps          null        ps                  0.0     0     0
+   prepbufr       t           null        t                   0.0     0     0
+   prepbufr       q           null        q                   0.0     0     0
+   prepbufr       pw          null        pw                  0.0     0     0
+   prepbufr       uv          null        uv                  0.0     0     0
+   prepbufr       spd         null        spd                 0.0     0     0
+   prepbufr       dw          null        dw                  0.0     0     0
+   prepbufr       sst         null        sst                 0.0     0     0
+   gpsrobufr      gps_ref     null        gps                 0.0     0     0
+   cwbw.dat       cwbuv       null        cwbuv               0.0     0     0
+   cwbt.dat       cwbt        null        cwbt                0.0     0     0
+   bgst.dat       bgst        null        t                   0.0     0     0
+   bgsw.dat       bgsuv       null        uv                  0.0     0     0
+   bgsq.dat       bgsq        null        q                   0.0     0     0
+   bgsps.dat      bgsps       null        ps                  0.0     0     0
+   amsuabufr      amsua       n15         amsua_n15           0.0     1     1
+   amsuabufr      amsua       n18         amsua_n18           0.0     1     1
+   amsuabufr      amsua       metop-a     amsua_metop-a       0.0     1     1
+   airsbufr       amsua       aqua        amsua_aqua          0.0     1     1
+   iasibufr       iasi        metop-a     iasi616_metop-a     0.0     1     1
+   airsbufr       airs        aqua        airs281SUBSET_aqua  0.0     1     1
+   atmsbufr       atms        npp         atms_npp            0.0     1     0
+::
+&SUPEROB_RADAR
+   
+ /
+ &LAG_DATA
+   
+ /
+ &HYBRID_ENSEMBLE
+   
+ /
+  ensemble_path='./ensemble_data/',
+ &RAPIDREFRESH_CLDSURF
+   dfi_radar_latent_heat_time_period=30.0,
+   
+ /
+ &CHEM
+   
+ /
+ &SINGLEOB_TEST
+   maginnov=0.1,magoberr=0.1,oneob_type='t',
+   oblat=45.,oblon=180.,obpres=1000.,obdattim=16080101,
+   obhourset=0.,
+   
+ /

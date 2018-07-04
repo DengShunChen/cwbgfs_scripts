@@ -1,0 +1,12 @@
+ &filst
+ ifilin='tpfgdms',
+ ifilout='RELOCATE',
+ cwbout='tmp/cwboutgfs0',
+ bckfile='BCKOPS',
+ phyout='tmp/phyoutgfs0',
+ namlsts='namlsts_typ',
+ crdate='crdate',
+ ocards='ocards',
+ mapfn='/nwpr/gfs/a398/etc/dms_t320L40.cfg',
+ &end
+

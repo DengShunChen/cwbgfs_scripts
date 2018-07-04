@@ -1,0 +1,708 @@
+#!/bin/ksh
+#set -x
+#-------------------------------------------------------------------------------
+# purpose : 
+#  create GFS data assimilation cycling enviroment for new experiment.
+#   when   opt_hyb =1   hybrid analysis. make sure l_hyb_ens=.true. in gsiparm_main
+#                   0   var analysis. make sure l_hyb_ens=.false. in gsiparm_main
+#
+# history : 
+# 2015.2     W.M. Chen    created.
+# 2015.6.2   W.M. Chen    update gsi,enkf and gfs.
+# 2015.9.7   W.M. Chen    difine DTMV for datamv 
+# 2015.10.6  W.M. Chen    prepare 1'st run data from userDefine/silo optionally
+# 2016.1.19  W.M. Chen    backup ncepbufr data files at NCEPBUFR directory
+#                         backup ncepoz data files at NCEPOZ directory
+#                         backup fgge files at CWBFGGE directory
+# 2016.1.31  W.M. Chen    for Joaquin hurrican test,create new option opt_Wtyp 
+#                         opt_Wtyp   =1   for Hurrican only check Wtyphoon${dtg}
+#                                    =0   checkWtyphoon${dtg} for W-Pacific Ocean typhoon
+#                         the exe file are different for the 2 situations.
+#                         => opt_Wtyp should depend on the reloc.exe you used
+#                      20160314, not used, since both typhoon${dtg}.dat and 
+#                                    Wtyphoon${dtg}.dat will be checked
+#                         
+#
+# definitions : 
+# MP          P for post run
+#             M for major run(not fully test yet!!)
+# inthr       interval in hours between 2 run
+#             for post , it has to be 6
+#                 major run, if you need to check 00/12Z only, inthr=12
+#                            => will run, e.g., 14010100,14010112,14010200...
+#                            if you need to check 00/06/12/18, inthr=6
+#  opt_crtworkdir  = 1, create work enviroment
+#                  = 0, work enviroment exist, create config file only
+#  opt_crtconfig   = 1, create config file
+#                  = 0, do not create config file
+#  fcstmode  = upd      6hrs fcst only
+#            = fd5      5 days fcst
+#                      (it could be changed by vi 0100_gdas.input.${exp}
+#                       during your update cycle run)
+#----------------------------------------------------------------
+# input dms file needed :
+#     SNOWICE=SNOWICE@${NCEPECDB}   : snowice ana(dms) from NCEP
+#                   if data for analysis dtg not exist =>
+#              will rdmscpy from NCEPGRID\${dtg0}_000-024@NCEPGRID-\${mm}@archive@hsmsvr1f"
+#     SSTNMC@${NCEPECDB}            : sst ana(dms) from NCEP 
+#                   if data for analysis dtg not exist
+#          (1) before 2013123118
+#              will rdmscpy from MASOPS\${gdtg}GG0GM-0024@NWPDB-\${mm}@archive@hsmsvr1f and process
+#          (2) after
+#              will rdmscpy from  NCEPGRID\${dtg0}_000-024@NCEPGRID-\${mm}@archive@hsmsvr1f and proc
+#
+#     ECGRID@${NCEPECDB}            : EC ana/24hrs fcst data (dms)
+#                   if data for analysis dtg not exist
+#              will rdmscpy from   ECGRID${dtg}@ECGRID-\${mm}@archive@hsmsvr1f
+#-------------------------------------------------------------------------------
+  MP=P
+  inthr=6
+
+  fcstmode=upd
+  opt_hyb=1
+  opt_crtworkdir=1
+  opt_crtconfig=1
+
+#-----------------------------------
+#  set for experiment
+#  REMWRK      MAIN working directory for gsi and gfs
+#  TPDIR       directory with typhoon${dtg}.dat
+#  WTPDIR      directory with Wtyphoon${dtg}.dat
+#-----------------------------------
+  expname='gfstest'
+  dtg_first=15061500
+
+  MDIR="/nwpr/gfs/xb80/data2/CWBGFS"
+  MDIRDAT="${MDIR}/dat"
+  MDIRBIN="${MDIR}/bin"
+  MDIRSCT="${MDIR}/scripts"
+  MDIRCRT="${MDIR}/crtexp"
+
+  REMWRK="/nwpr/gfs/xb80/data2/WORKDIR/rt512l60v_wrk"
+ #TPDIR="/nwp/npcagfs/GFS/M00/dtg/oi/glb"
+ #WTPDIR="/nwp/npcagfs/GFS/M00/dtg/oi/glb"
+  TPDIR="/nwp/npcagfs/GFS/M00/dtg/oi/tfs"
+ WTPDIR="/nwp/npcagfs/GFS/M00/dtg/oi/tfs"
+
+  # dmsdb 
+  DMSDB=${expname}
+  DMSFN=${expname}
+  SCOREDMSDB=${DMSDB}
+
+  # resolutions
+  gfsflag=GH
+  ensflag=GG
+
+  # for model resolusion here is T511L60 
+  JCAPB=${JCAPB:-511}
+  JCAPA=${JCAPA:-511}
+  LONA=${LONA:-1536}
+  LATA=${LATA:-768}
+  LONB=${LONB:-1536}
+  LATB=${LATB:-768}
+
+  # for model resolusion here is T319L60 
+  JCAPB_ENKF=${JCAPB_ENKF:-319}
+  JCAPA_ENKF=${JCAPA_ENKF:-319}
+  LONA_ENKF=${LONA_ENKF:-960}
+  LATA_ENKF=${LATA_ENKF:-480}
+  LONB_ENKF=${LONB_ENKF:-960}
+  LATB_ENKF=${LATB_ENKF:-480}
+
+  # model vertical levels 
+  LEVS=${LEVS:-60}
+
+  # total members
+  ntotmem=36
+
+#-----------------------------------
+#--- for preparing initial data from operation!!
+# WORKDIR           working direction for initial data preparing
+# opt_getidata =0   do not need to prepare initial data
+#              =1   get initial dms data from specific dms files
+#                   and change resolution
+#                   ex1: from operational parallel run at fx100
+#                       start_dmsdb=NWPDB@${operacc}@login11
+#                       start_maindms=MASOPS
+#                       start_enkfdms=MASOPS 
+#                   ex2:  from prepared dms files at ${expname}
+#                       start_dmsdb=${expname}
+#                       start_maindms=MASOPSop
+#                       start_enkfdms=MASOPSop
+#                 define directory for bias files from :  
+#                   start_biasdir=${MDIR}/opdiag
+#              =2  get operational data from silo and change resolution (not tested!!!!)
+#                 (from t320l40_t180l40 to t512l60_t320l60 now(201510))
+#-----------------------------------
+  operacc=xb80
+  operdmsdb=t512l60@${operacc}
+  bckdmsdb=bckdms@${operacc}
+
+#-----------------------------------
+# get initial data for exp run
+#-----------------------------------
+  opt_getidata=2
+
+# needed when opt_getidata=1
+  start_biasdir=${MDIR}/newdiag
+
+# needed when opt_getidata=2
+  silo_gfsflag=GG
+  silo_ensflag=GE
+
+# create working directory when needed
+  if [ $opt_getidata -ne 0 ] ; then
+    WORKDIR_MAIN=${MDIR}/WorkMain_${expname}
+    if [ ! -s $WORKDIR_MAIN ] ; then
+      mkdir $WORKDIR_MAIN
+    fi
+    WORKDIR_ENKF=${MDIR}/WorkEnkf_${expname}
+    if [ ! -s $WORKDIR_ENKF ] ; then
+      mkdir $WORKDIR_ENKF
+    fi
+  fi
+
+#-----------------------------------
+# set DATAMV, SETMPI SETMPIOMP
+#-----------------------------------
+  MACHINE='fx100'
+  DTMV="login13"
+  LGIN="login13"
+  PJSUB='pjsub -L rscgrp=research-x'
+  SETMPI="setup_mpi.${MACHINE}"
+  SETMPIOMP="setup_mpi+omp.${MACHINE}"
+
+#-----------------------------------
+# set for silo archive
+#  silo_dmspath       path for archive dms file
+#  silo_diapath       path for archive diagnose files
+#  psilo_dmspath      path where the post run dmsfiles from, for major run only
+#  model              definition for group of experiments
+#-----------------------------------
+  silouser=xb80
+  model=t512l60v
+  silo0=/rs/bak/${silouser}
+
+# silo_dmspath0=${silo0}/${model}
+# silo_dmspath=${silo_dmspath0}/${expname}/dmsdbdir
+# psilo_dmspath=${silo_dmspath0}/${expname}/dmsdbdir
+
+# silo_diapath0=${silo0}/${model}
+# silo_diapath=${silo_diapath0}/${expname}/dtgdir
+# psilo_diapath=${silo_diapath0}/${expname}/dtgdir
+
+  dtmv_dmspath0=${silo0}/dmsdir
+  dtmv_diapath0=${silo0}/diadir
+  dtmv_dmspath=${dtmv_dmspath0}/${expname}
+  dtmv_diapath=${dtmv_diapath0}/${expname}
+
+#-----------------------------------
+# set dir  for saving files locally
+# NCEPBUFR   for NCEP bufr files
+# NCEPOZ     for NCEP oz files
+# opt_saveobs2loc  =1    will save observational files at local directory
+#                  =0    will not save observational files  at local dir
+#-----------------------------------
+  opt_saveobs2loc=0
+  NCEPBUFR="${HOME}/data2/ncepbufr"
+  NCEPOZ="${HOME}/data2/ncepbufr"
+#  NCEPBUFR=/data/common/gfs/obs_data/OBS_1507
+#  NCEPOZ=/data/common/gfs/obs_data/OBS_1507
+  #-- for  MP=M only
+  CWBFGGE="${HOME}/data2/fggedat"
+
+#----------------------------------------------------------
+# set for basic enviroment
+#  TPDIR     directory with typhoon${dtg}.dat files
+#  BCKOPSFN     BCKOPS for MAIN run
+#  BCKENSFN  BCKOPS for ENKF run
+#----------------------------------------------------------
+  export DMSDBPATH="${HOME}/data2/dmsdb"
+  ggflag=${gfsflag}0G
+  BCKOPSFN='BCKOPS'
+  BCKENSFN='BCKENKF'
+
+  opt_getBCK=1
+  BCKOPSFN_op=BCK_${gfsflag}@${bckdmsdb}
+  BCKENSFN_op=BCK_${ensflag}@${bckdmsdb}
+
+  if [ $opt_hyb -eq 1 ] ; then
+    DIRpert_from=${MDIR}/dat/enspert
+  fi
+
+#--------------------------------------------------------------
+# gfs workdir from
+#--------------------------------------------------------------
+  GFSFROM_MAIN=${MDIRDAT}/gfst512l60
+  GFSFROM_ENKF=${MDIRDAT}/gfst320l60
+
+#--------------------------------------------------------------
+# resource for analysis and fcst
+#--------------------------------------------------------------
+# resource for MAIN gsi
+# anode_main=32 ;  ampi_main=128  ; aomp_main=8
+  anode_main=66 ;  ampi_main=192  ; aomp_main=4
+
+# resource for ENKF gsi
+  anode_ens=8  ; ampi_ens=32 ;  aomp_ens=4  ; agrp_ens=6
+
+# resource for ENKF enkf
+  enode=24 ; empi=192 ; eomp=4
+
+# resource for ENKF inflation
+  inode=3  ; impi=48
+
+# resource for MAIN gfs
+#  fnode_main=12   ;  fmpi_main=96 ; fomp_main=2
+#  fnode_main=24   ;  fmpi_main=192 ; fomp_main=4
+# fnode_main=36   ;  fmpi_main=288 ; fomp_main=4
+  fnode_main=48   ;  fmpi_main=288 ; fomp_main=4
+# resource for ENKF gfs
+  fnode_enkf=12   ;  fmpi_enkf=96 ; fomp_enkf=2
+
+#--------------------------------------------------------------
+# exe files               
+#--------------------------------------------------------------
+#  export GSIexe=${MDIR}/bin/GH_global_gsi
+#  export MODELexe=${MDIR}/bin/GH_gfs_D62
+  export GSIexe=/nwpr/gfs/xb80/data/exp/EXP-4denv-sdbeta/exe/global_gsi_fx100
+  export ENKFexe=/nwpr/gfs/xb80/data/exp/EXP-4denv-sdbeta/exe/global_enkf_fx100
+  export MODELexe=${MDIR}/bin/GH_gfs
+  export BOGexe=${MDIR}/bin/GH_cbogusW
+  export RELOCexe=${MDIR}/bin/GH_relocW
+#not used  export opt_Wtyp=1
+
+#--------------------------------------------------------------
+# fix input files setting for pre/post-process , the files should at ${MDIR}/dat/ana
+#--------------------------------------------------------------
+  namelist_sst=namlsts.getsst
+  namelist_preoiqc=namlsts.preoiqc
+  namelist_preana=pre_ana.input
+  namelist_preana_ens=pre_ana.input.ens
+  namelist_postana=post_ana.input
+  namelist_postana_ens=post_ana.input.ens
+
+#--------------------------------------------------------------
+# gsi fix input files setting, the files should at ${MDIR}/dat/ana
+#--------------------------------------------------------------
+#  namelist_gsi=gsiparm_post.input
+#  gsiparm_main=gsiparm_post.input.2015opmec_var
+#  gsiparm_main=gsiparm_posthyb.input
+#  gsiparm_innov=gsiparm_innov.input.2015op
+  fnsatinfo=global_satinfo.txt
+  fnconvinfo=global_convinfo.txt
+#  sigifn=${NWPDATANA}/global_siglevel.cwbl60.txt
+#  sigifnhb=${NWPDATANA}/global_siglevel.l60hybd.txt
+
+#---------------------------------------------------------------------------
+#  Post or major run ?
+#---------------------------------------------------------------------------
+  if [ ${MP} = "p" ] ; then ; MP=P ; fi
+  if [ ${MP} = "m" ] ; then ; MP=M ; fi
+
+  if [ $MP = P ] ; then
+    DMSTL=${gfsflag}MGP
+    DMSENSTL=${ensflag}MGP
+    pDMSFN=NULL
+    pDMSTL=NULL
+  elif [ $MP = M ] ; then
+    DMSTL=${gfsflag}MGM
+    DMSENSTL=${ensflag}MGM
+    pDMSFN=${DMSFN}
+    pDMSTL=${gfsflag}MGP
+  else
+    echo "Unknown MP = $MP"
+  fi
+
+#--------------------------------------------------------------
+# obs type assimilated
+#--------------------------------------------------------------
+  ntype=10
+  ncepbufrlst="prepbufr 1bamua    gpsro     airsev   mtiasi   atms     1bhrs4    1bmhs   goesfv    osbuv8"
+  pmbufrlst="prepbufr amsuabufr gpsrobufr airsbufr iasibufr atmsbufr hirs4bufr mhsbufr gsnd1bufr sbuvbufr"
+
+#--------------------------------------------------------------
+# setting for config
+#--------------------------------------------------------------
+#  optobs     =1  (1)get data from silo (2)oiqc for major run
+#              0   data already at gsi working directory
+#  optcdms    =1   archive dms to silo at $silo_dmspath
+#              0   do not archive dms file
+#  optcdia    =1   archive diagnose files to silo at $silo_diapath
+#              0   do not archive diagnose file
+#--------------------------------------------------------------
+  optobs=1
+  optcdms=1
+  optcdia=1
+
+  NWPBIN=${MDIR}/bin
+  NWPBINS0=${MDIR}/scripts
+  LWRK=${MDIR}/exp_${DMSFN}
+  export BCKOPS=${BCKOPSFN}@${DMSDB}
+  export BCKENS=${BCKENSFN}@${DMSDB}
+
+  export NCEPECDB=ncepec
+  if [ ! -s ${DMSDBPATH}/${NCEPECDB}.ufs ] ; then
+      mkdir ${DMSDBPATH}/${NCEPECDB}.ufs 
+  fi
+  export ECDMSFN=ECGRID
+  export ECDMS=${ECDMSFN}@${NCEPECDB}
+  export SNOWDMS=SNOWDMS@${NCEPECDB}
+  export SSTDMSFN=SSTDMS
+  export SSTDMS=${SSTDMSFN}@${NCEPECDB}
+
+  NWPDAT=${MDIR}/dat
+  NWPDATANA=${NWPDAT}/gsifix
+  NWPDATPERT=${NWPDAT}/enspert
+  if [ ! -s $NWPDATPERT   ] ; then
+    ln -fs $DIRpert_from  $NWPDATPERT
+  fi
+
+#**************************************************************************
+#***************    No Need to change below this line   *******************
+#**************************************************************************
+  export DMSPATH=/package/fx100/dms/dms.v4/bin
+  export DMSPATHx86=/package/dms/dms.v4/bin
+
+#--------------------------------------------------------------
+# prepare dtg 
+#--------------------------------------------------------------
+  dtg=$dtg_first 
+  mm=`echo $dtg | cut -c3-4`
+  fgdtg=`${MDIRCRT}/Caldtg.ksh $dtg_first -6`
+  fgmm=`echo $fgdtg | cut -c3-4`
+
+#--------------------------------------------------------------
+# create working env
+#--------------------------------------------------------------
+if [ ${opt_crtworkdir} -eq 1 ] ; then
+
+  # create archive directory at silo
+  ssh datamv07  mkdir -p ${silo0}
+  ssh datamv07  mkdir -p ${dtmv_dmspath0}
+  ssh datamv07  mkdir -p ${dtmv_diapath0}
+  ssh datamv07  mkdir -p ${dtmv_dmspath}
+  ssh datamv07  mkdir -p ${dtmv_diapath}
+  echo " create archive         ok .... (enter)"
+  read 
+
+#-----------------------------------------------------------------------
+# env setting - 
+#
+#  env description :
+#    MDIR  -     bin      exe and script files
+#                dat/ana  analysis fix file and namelist files
+#                dat/obs  obs fix input files
+#    REMWRK      working dir physically, usually ${HOME}/data/${model}/${exp}
+#    NWP        local working director which ln -s to REMWRK
+#            -   dtg, working directory for pre-gsi and post-gsi
+#                dtg_wrk, working directory for gsi
+#                dtg_save, directory to save diagnose files and bias files
+#                logdir, logfiles
+#
+#-------------------------------------------------------------------------------------
+# env setting
+#-------------------------------------------------------------------------------------
+  export NWP=${LWRK}
+  REMWRK=${REMWRK}
+  if [ ! -s ${REMWRK} ] ; then
+    mkdir ${REMWRK}
+  fi
+  if [  -s ${REMWRK}/${expname} ] ; then
+    echo "   "
+    echo "${REMWRK}/${expname} exist, want to delete it? (y) or not(n)"
+    read optrm
+    echo "optrm="$optrm
+    if [ $optrm = "Y" -o $optrm = "y" ] ;then
+      rm -f -r  ${REMWRK}/${expname}
+      mkdir ${REMWRK}/${expname}
+    else
+      echo "   "
+      echo "${REMWRK}/${expname} already exist, use old one(y) or not(n)"
+      read optold
+      echo "optold="$optold
+      if [ $optold = "N" -o $optold = "n" ] ;then
+        echo "exit, try new exp(DMSFN) name"
+        exit
+      fi
+    fi
+  else
+    mkdir ${REMWRK}/${expname}
+  fi
+  echo " create work env        now .... (enter)" ; read 
+
+  echo rm -f ${NWP}
+  rm -f ${NWP}
+  echo ln -fs ${REMWRK}/${expname} ${NWP}
+  ln -fs ${REMWRK}/${expname} ${NWP}
+  echo ' press any key to continue...' ; read 
+
+  mkdir -p ${NWP}/bins ; cd ${NWP}/bins
+  cp ${NWPBINS0}/* .
+  cp ${NWPBINS0}/$SETMPI set_mpi
+  cp ${NWPBINS0}/$SETMPIOMP set_mpi+omp
+
+### for gsi working directory
+  export NWPBINS=${NWP}/bins
+  export DTG=${NWP}/dtg
+  export DTGWRK=${NWP}/dtg_wrk
+  export DTGSAV=${NWP}/dtg_save
+  export LOGDIR=${NWP}/logdir
+  export STATUS=${NWP}/status
+  export DTGENS=${NWP}/dtg_ens
+  export DTGENSWRK=${NWP}/dtg_ens_wrk
+  export DTGENSSAV=${NWP}/dtg_ens_save
+  if [ ! -s ${DTGWRK} ];then
+    mkdir ${DTGWRK}  ; fi
+  if [ ! -s ${DTG} ];then
+    mkdir ${DTG}  ; fi
+  if [ ! -s ${DTGSAV} ];then
+    mkdir ${DTGSAV}  ; fi
+  if [ ! -s ${LOGDIR} ];then
+    mkdir ${LOGDIR}  ; fi
+  if [ ! -s ${STATUS} ];then
+    mkdir ${STATUS}  ; fi 
+
+#--- if opt_hyb
+  if [ $opt_hyb -eq 1 ] ; then
+    echo " create work env        now .... (enter)" ; read 
+    # member run
+    if [ ! -s ${DTGENSWRK} ];then
+      mkdir ${DTGENSWRK}
+      mem=1
+      while [ $mem -le $ntotmem ] ; do
+        cmem3=`printf %03i $mem`
+        mkdir ${DTGENSWRK}/innov_${cmem3}
+        ((mem=$mem+1))
+      done
+      mkdir ${DTGENSWRK}/innov_ensmean
+    fi
+    if [ ! -s ${DTGENS} ]    ; then ; mkdir ${DTGENS}    ; fi
+    if [ ! -s ${DTGENSSAV} ] ; then ; mkdir ${DTGENSSAV} ; fi
+  fi
+#--- endif opt_hyb
+
+#++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# create configure files : config.${DMSFN}
+#+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-
+  if [ ${opt_crtconfig} -eq 1 ] ; then  
+    . ${MDIRCRT}/get_0000.config.ksh
+  fi
+  echo " create config.${DMSFN} ok .... (enter)"
+  read 
+
+#-----------------------------------------------------------------------
+# create run.input
+#-----------------------------------------------------------------------
+cat > 0100_gdas.input << EOFruninput
+config filename                     =0000.config.${DMSFN}
+the initial dtg for this exp        =${dtg_first}
+the ending  dtg for this exp        =${dtg_first}
+ForecastOption                      =${fcstmode}
+
+#--- note ---
+BE SURE to create : 
+   ${LWRK}/gfsctl.0012.{ForecastOption}
+   ${LWRK}/gfsctl.0618.{ForecastOption}
+  ForecastOption=upd,day5,day8  are ready !!
+EOFruninput
+
+  mv 0100_gdas.input ${NWPBINS}/0100_gdas.input.${DMSFN}
+
+  MDIR=${MDIR}
+  export NWP=${LWRK}
+
+#--------------------------------------------------------------
+#  for gfs forecast
+#--------------------------------------------------------------
+  export fnode_main=${fnode_main}
+  export fmpi_main=${fmpi_main}
+  export fomp_main=${fomp_main}
+  export fnode_enkf=${fnode_enkf}
+  export fmpi_enkf=${fmpi_enkf}
+  export fomp_enkf=${fomp_enkf}
+  
+  #-------- create gfs workdir,namelist and gfsctl
+  export GFSDIR=${NWP}/gfs
+  rm -f -r $GFSDIR
+  mkdir $GFSDIR
+  cd $GFSDIR
+  cp  -r ${GFSFROM_MAIN}/*  .
+
+  # namelist linkage
+#  ln -fs ${GFSFROM_MAIN}/namlsts .
+
+  echo " create  M00 gfs       now .... (enter)"
+  read
+  mkdir tmpdir
+  rm -f  filist dms.log tmpdir/*
+
+cat > filist << EOFfilist
+ &filst
+ ifilin='MASOPS',
+ ifilout='MASOPS',
+ cwbout='${GFSDIR}/tmpdir/gfs_cwbout',
+ bckfile='BCKOPS',
+ phyout='${GFSDIR}/tmpdir/gfs_phyout',
+ namlsts='${GFSDIR}/namlsts',
+ crdate='${GFSDIR}/crdate',
+ ocards='${GFSDIR}/ocards',
+ &end
+EOFfilist
+
+  #-------- define ctl
+  cd  $GFSDIR
+  rm -f gfsctl.0012  gfsctl.0618
+
+#-----------------------------------------------------------------------
+# for typhoon relocate and bogus
+#-----------------------------------------------------------------------
+cat > filistbogus00 << EOFbgs00
+ &filst
+ ifilin='RELOCATE'
+ ifilout='BGSOUT'
+ bckfile='BCKOPS'
+ namlstsbogus='${GFSDIR}/namlstsbogus'
+ crdate='${GFSDIR}/crdate'
+ ocards='${GFSDIR}/ocards'
+ &end
+EOFbgs00
+
+cat > filist_typ << EOFtyp
+ &filst
+ ifilin='MASOPS',
+ ifilout='RELOCATE',
+ cwbout='tmp/cwboutgfs0',
+ bckfile='BCKOPS',
+ phyout='tmp/phyoutgfs0',
+ namlsts='${GFSDIR}/namlsts_typ',
+ crdate='${GFSDIR}/crdate',
+ ocards='${GFSDIR}/ocards',
+ mapfn=' ',
+ &end
+EOFtyp
+
+#-----------------------------------------------------------------------
+# create gfs working directory for ens member
+#-----------------------------------------------------------------------
+  if [ $opt_hyb -eq 1 ] ; then
+    echo " create  Ensemble track directory      now .... (enter)" ; read
+    mkdir ${NWP}/trk
+
+    echo " create  ENKF gfs      now .... (enter)" ; read
+    mem=1
+    while [  ${mem} -le $ntotmem ] ; do
+      cd ${NWP}
+      cmem3=`printf %03i $mem`
+      cp -rf  ${GFSFROM_ENKF} ${NWP}/gfs_${cmem3}
+#      ln -fs ${GFSFROM_ENKF}/namlsts ${NWP}/gfs_${cmem3}
+      cd ${NWP}/gfs_${cmem3}
+      rm -rf  filist dms.log tmpdir
+      mkdir tmpdir
+      curdir=`pwd`
+
+cat > filist << EOFfilist
+ &filst
+ ifilin='MASOPS',
+ ifilout='MASOPS',
+ cwbout='${curdir}/tmpdir/gfs_cwbout',
+ bckfile='BCKOPS',
+ phyout='${curdir}/tmpdir/gfs_phyout',
+ namlsts='${curdir}/namlsts',
+ crdate='${curdir}/crdate',
+ ocards='${curdir}/ocards',
+ &end
+EOFfilist
+
+      ((mem=${mem}+1))
+    done
+  fi
+
+fi
+echo " create working env for exp $DMSFN successfully!!"
+
+#-----------------------------------------------------------------------
+#-- create dms files
+#-----------------------------------------------------------------------
+if [ ! -s  ${DMSDBPATH}/${DMSDB}.ufs ] ; then
+  mkdir   ${DMSDBPATH}/${DMSDB}.ufs
+fi
+if [ ! -s ${DMSDBPATH}/${DMSDB}.ufs/MASOPS ] ; then
+  mkdir ${DMSDBPATH}/${DMSDB}.ufs/MASOPS
+fi
+ln -s ${DMSDBPATH}/${DMSDB}.ufs ${NWP}/dmsdb
+cd ${DMSDBPATH}/${DMSDB}.ufs
+
+if [ $opt_hyb -eq 1 ] ; then
+  typeset -Z3 mem
+  mem=1
+  while [  ${mem} -le $ntotmem ] ; do
+    if [ ! -s  ${DMSDBPATH}/${DMSDB}.ufs/MASOPS_mem${mem} ] ; then
+      mkdir  ${DMSDBPATH}/${DMSDB}.ufs/MASOPS_mem${mem}
+    fi 
+    ((mem=$mem+1))
+  done
+fi
+echo " create dmsfile  for exp $DMSFN successfully!!"
+
+#-----------------------------------------------------------------------
+#--- prepare for SCORE
+#-----------------------------------------------------------------------
+if [ ! -s ${DMSDBPATH}/${SCOREDMSDB}.ufs  ] ; then
+  mkdir  ${DMSDBPATH}/${SCOREDMSDB}.ufs 
+  mkdir  ${DMSDBPATH}/${SCOREDMSDB}.ufs/CWBCLM
+fi
+if [ ! -e ${DMSDBPATH}/${SCOREDMSDB}.ufs/CWBCLM/*  ] ; then
+  export adms=CWBCLM@${operdmsdb}
+  export bdms=CWBCLM@${SCOREDMSDB}
+  rdmscrt -l34 $bdms
+  rdmscpy -l34 -k"*" $adms $bdms
+fi
+
+#-----------------------------------------------------------------------
+#--- prepare BCKOPS and BCKENKF
+#-----------------------------------------------------------------------
+if [ $opt_getBCK -eq 1 ] ; then
+  if [ ! -e ${DMSDBPATH}/${DMSDB}.ufs/${BCKOPSFN}/*  ] ; then
+    export BCKMAIN=${BCKOPSFN}@${DMSDB}
+    rdmscrt -l34  ${BCKMAIN}
+    export BCKMAIN_op=${BCKOPSFN_op}
+    rdmscpy -l34 -k"*" ${BCKMAIN_op} ${BCKMAIN}
+  fi
+
+  if [ ! -e ${DMSDBPATH}/${DMSDB}.ufs/${BCKENSFN}/*  ] ; then
+    export BCKENKF=${BCKENSFN}@${DMSDB}
+    rdmscrt -l34  ${BCKENKF}
+    export BCKENKF_op=${BCKENSFN_op}
+    rdmscpy -l34 -k"*" ${BCKENKF_op} ${BCKENKF}
+  fi
+fi
+
+#-----------------------------------------------------------------------
+#---- get initial data
+#-----------------------------------------------------------------------
+if [ $opt_getidata -ne 0 ] ; then
+
+  # get operational keys from operataion account
+  if [ $opt_getidata -eq 1 ] ; then
+    cp $start_biasdir/satbias.20$fgdtg ${DTG}_save
+    cp $start_biasdir/satbias_ang.20$fgdtg ${DTG}_save
+  elif [ $opt_getidata -eq 2 ] ; then
+
+    . ${MDIRCRT}/get_initdata.ksh
+
+    if [[ $? = 0 ]] ; then
+      echo "Finish get initial data !! enter any key to continue ..." ; read 
+    fi
+
+    # Change Resolution 
+    if [[ $silo_gfsflag != $gfsflag ]] ; then 
+      echo "Start Change Resolution ...now .... (enter)" ; read
+      . ${MDIRCRT}/chres.ksh    
+    fi  # end of changing resolution 
+  fi
+
+fi  # end of getting initial data
+  
+ 
+exit

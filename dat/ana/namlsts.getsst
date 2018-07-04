@@ -1,0 +1,9 @@
+ &sstlst
+ im_i=720,
+ im_o=1536,
+ flag_i="NA08",
+ flag_o="GH0G",
+ idmsfn='SSTNMC',
+ odmsfn='MASOPS',
+ readfil='gg2gg.fil',
+ &end

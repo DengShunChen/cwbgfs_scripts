@@ -1,0 +1,14 @@
+
+#usage : . setup_mpi.fx10  
+#      : run mpi job in fx10
+
+LANG_HOME=${LANG_HOME-"/opt/FJSVfxlang/1.2.1"}
+TOFU_HOME=${TOFU_HOME-"/opt/FJSVpxtof/sparc64fx"}
+CWB_PATH=/package/fx10/dms/dms.v4/lib:/package/fx10/operlib/lib
+
+export PATH=/bin:/usr/bin:${LANG_HOME}/bin:$PATH
+export LD_LIBRARY_PATH=$CWB_PATH:$LANG_HOME/lib64:$TOFU_HOME/lib64
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/FJSVXosSclib/lib64
+export LANG=C
+export XOS_MMM_L_ARENA_FREE=2
+

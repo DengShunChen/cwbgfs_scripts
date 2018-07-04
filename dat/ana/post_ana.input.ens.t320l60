@@ -1,0 +1,8 @@
+&post_ana
+  nsigcwb=40,
+  jcapcwb=179,
+  imcwb=540,
+  jmcwb=270,
+  odmsfn='MASOPS',
+  flag='GE',
+/

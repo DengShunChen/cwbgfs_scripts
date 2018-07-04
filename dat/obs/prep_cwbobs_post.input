@@ -1,0 +1,7 @@
+ &setup
+ nfile=2,
+ &end
+ &file_input
+ dfile(01)='ECDMS',  dtype(01)='tec2',
+ dfile(02)='ECDMS',  dtype(02)='uvec2',
+ &end

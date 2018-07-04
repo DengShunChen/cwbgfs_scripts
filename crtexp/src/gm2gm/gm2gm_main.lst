@@ -1,0 +1,2606 @@
+
+ Fujitsu Fortran Version 2.0.0  Mon Jul 24 10:21:43 2017
+
+ Compilation information
+   Current directory : /IFS4/data/datagfs/xb80/exp/GFS_Scripts_Maintain/crtexp/src/gm2gm
+   Source file       : gm2gm_main.f90
+
+ Option information
+   Command line options : -Kfast,openmp,optmsg=2 -CcdRR8 -X9 -Fwide -V -Ec -Qa,d,i,p,t,x -c -L/package/fx100/dms/dms.v4/lib -lrdms -lgdbm -L/package/fx100/operlib/lib -lnwp
+   Effective options    : -fi -g0 -AE -Ec -Free -Fwide -O3 -Qa,d,i,p,t,x -X9
+                          -CcdRR8 -x0
+                          -KHPC_ACE2 -KFLTLD -Kadr44 -Kauto -Knoautoobjstack
+                          -Knocalleralloc -Kdalign -Keval -Knofed
+                          -Knofenv_access -Kfp_contract -Kfp_relaxed
+                          -Kfsimple -Kilfunc -Kintentopt -Klargepage
+                          -Kloop_blocking -Kloop_fission -Kloop_nofission_if
+                          -Kloop_fusion -Kloop_interchange
+                          -Kloop_nopart_parallel -Kloop_nopart_simd
+                          -Kloop_noversioning -Knolto -Knonf -Kns -Kmfunc=1
+                          -Knoocl -Komitfp -Koptmsg=2 -Knopreex
+                          -Kprefetch_conditional -Kprefetch_noindirect
+                          -Kprefetch_sequential=auto -Kprefetch_nostride
+                          -Kprefetch_cache_level=all -Kprefetch_noinfer
+                          -Kprefetch_nostrong -Kprefetch_strong_L2
+                          -Knoshortloop -Ksimd=auto -Ksimd_noseparate_stride
+                          -Knostriping -Kswp -Knotemparraystack -Kunroll
+                          -Knouxsimd -KNOXFILL
+                          -Kopenmp -Kopenmp_noassume_norecurrence
+                          -Kopenmp_noordered_reduction -Kopenmp_notls
+                          -Kthreadsafe -Knoparallel -Kparallel_nofp_precision
+                          -Knoarray_private -Knodynamic_iteration
+                          -Knoreduction -Knoregion_extension
+                          -Nallextput -Nnoalloc_assign
+                          -Ncancel_overtime_compilation -Nnocoarray
+                          -Nnocompdisp -Nnocopyarg -Nfreealloc -Nf90move
+                          -Nnohook_func -Nnohook_time -Nline -Nlst -Nlst=a
+                          -Nlst=d -Nlst=i -Nlst=p -Nlst=t -Nlst=x
+                          -Nnomallocfree -Nnoobsfun -Nnoprivatealloc
+                          -Nquickdbg=noargchk -Nquickdbg=nosubchk
+                          -Nquickdbg=noundef -NRnotrap -Nnorecursive
+                          -Nrt_notune -Nnosave -Nsetvalue=noheap
+                          -Nsetvalue=nostack -Nsetvalue=noscalar
+                          -Nsetvalue=noarray -Nsetvalue=nostruct -Nuse_rodata
+
+ Main program "gm2gm_main"
+  (inc)(line-no.)(nest)(optimize)
+               1                      program gm2gm_main
+               2                        implicit none
+               3                     
+               4                        integer :: im, jm, km ,nx, my, lev, lmax, ierr
+               5                        integer, parameter :: unit_file = 15
+               6                        character(len=80) ::  namlsts
+               7                        character(len=8)  :: cdtg8
+               8                        character(len=12) :: cdtg
+               9                        character(len=4)  :: ctau
+              10                        character(len=26) :: lrec
+              11                        character(len=6)  :: typ
+              12                        character(len=4)  :: topohgt
+              13                        character(len=2)  :: dmsflagin, dmsflagout
+              14                     
+              15                        integer(kind=8)   :: idtg,idtg_fg,idtgx
+              16                     
+              17                        integer :: i,j,k,imx,jmx
+              18                        integer :: ksgeo,nargc,iargc,itaup,istat_r,istat_w,istat
+              19                        integer :: nt,itaux,nxj,iwnd,nxmy
+              20                        integer :: lenrec1,lenrec2
+              21                        integer :: imn, jmn
+              22                        real    :: ptop1,ptop2,grav,cp,capa,rgas
+              23                        real    :: dtt
+              24                        real    :: amx, amn
+              25                     
+              26                        logical :: hybrid1,hybrid2
+              27                        logical :: first,horizon_intpo
+              28                     
+              29                        character(len=64) :: type_r,type_w,argument
+              30                     !---------------------------------------------------------------------------------
+              31                     !  transfer the sigma-level grid data between different resolutions
+              32                     !  (im ,jm ,lm   ) : original grid system
+              33                     !  (nx ,my ,lev  ) : new grid system
+              34                     !---------------------------------------------------------------------------------
+              35                        real, allocatable,save :: pt(:,:),plt(:,:,:),pt2(:,:),plt2(:,:,:)       &
+              36                                                 ,sgeo(:,:),plt2p(:,:,:)                        &
+              37                                                 ,sig(:),sig40(:),sig30(:),puvphi(:)            &
+              38                                                 ,pk(:,:),pk2(:,:),presp(:,:,:)                 &
+              39                                                 ,tens(:),pkx(:,:),pk2x(:,:)                    &
+              40                                                 ,wkr(:,:),xr(:),yr(:),zz(:,:,:)                &
+              41                                                 ,hld1(:,:),fld1(:,:,:),fld2(:,:,:)             &
+              42                                                 ,phi(:,:,:),wkpz(:,:),anlslp(:,:),t1000(:,:)   &
+              43                                                 ,wkp(:,:),wkq(:,:),qsat(:,:,:),qsat2(:,:,:)    &
+              44                                                 ,sigma(:,:),aki(:),bki(:)
+              45                     
+              46                        integer, allocatable, save :: iwkr(:,:),ihld(:,:)
+              47                        character(len=6), allocatable, save :: irecfe(:)
+              48                     !---------------------------------------------------------------------------------
+              49                     !  bck     : bckops dmsfile name for to-target for the use of rebuilding
+              50                     !            pt basing on it's terrain
+              51                     !  ifilin  : masops dmsfile name for from-target
+              52                     !  ifilout : masops dmsfile name for to-target
+              53                     !---------------------------------------------------------------------------------
+              54                        character(len=24) :: bck='GM2GM_BCK'
+              55                        character(len=24) :: ifilin='GM2GM_MASIN'
+              56                        character(len=24) :: ifilout='GM2GM_MASOUT'
+              57                     !---------------------------------------------------------------------------------
+              58                     !  ggdef : definition of gg keys for operational gfs
+              59                     !  gmdef : definition of gm keys for operational gfs
+              60                     !---------------------------------------------------------------------------------
+              61                        character(len=4)  :: ggdef1,gmdef1
+              62                        character(len=4)  :: ggdef2,gmdef2
+              63                     
+              64                     !  ksgeo, ptop : be consistent with the operational use
+              65                        data ksgeo/ 2 /, ptop2/ 0.1 /, ptop1/1.0/
+              66                     
+              67                     !  cons
+              68                        data grav/9.806/
+              69                        data cp/1004.24/
+              70                     
+              71                        namelist /gm2gm_param/dmsflagin,im,km,dmsflagout,nx,lev,lmax
+              72                     
+              73                     !---------------------------------------------------------------------------------
+              74                     
+              75                        ! defalut value
+              76                        dmsflagin='GG'
+              77                        dmsflagout='GH'
+              78                        im=960
+              79                        km=40
+              80                        nx=1536
+              81                        lev=60
+              82                        lmax=16
+              83                     
+              84                        ! get namlist file name
+              85                        call getenv("GM2GM_NAMLSTS",namlsts)
+              86                     
+              87                        ! read namelist
+              88                        open (unit=unit_file,file=trim(namlsts),form='formatted')
+              89                        read(unit_file,nml=gm2gm_param)
+              90                        close(unit_file)
+              91                     
+              92                        ! write namelist
+              93                        write(6,nml=gm2gm_param)
+              94                     
+              95                        ggdef1=trim(dmsflagin)//'0G'
+              96                        gmdef1=trim(dmsflagin)//'MG'
+              97                     
+              98                        ggdef2=trim(dmsflagout)//'0G'
+              99                        gmdef2=trim(dmsflagout)//'MG'
+             100                     
+             101                     !DSADD >>>
+             102                     !  if (ggdef1=='GE0G') then  ! T180
+             103                     !    im=540
+             104                     !  elseif(ggdef1=='GF0G') then ! T240
+             105                     !    im=720
+             106                     !  elseif(ggdef1=='GG0G') then ! T320
+             107                     !    im=960
+             108                     !  elseif(ggdef1=='GH0G') then ! T511
+             109                     !    im=1536
+             110                     !  else
+             111                     !    print*,'Invalidated setting ggdef1=',ggdef1,' Stop program !!'
+             112                     !    stop
+             113                     !  endif
+             114                     
+             115                     !  if (ggdef2=='GE0G') then  ! T180
+             116                     !    nx=540
+             117                     !  elseif(ggdef2=='GF0G') then ! T240
+             118                     !    nx=720
+             119                     !  elseif(ggdef2=='GG0G') then ! T320
+             120                     !    nx=960
+             121                     !  elseif(ggdef2=='GH0G') then ! T511
+             122                     !    nx=1536
+             123                     !  else
+             124                     !    print*,'Invalidated setting ggdef2=',ggdef2,' Stop program !!'
+             125                     !    stop
+             126                     !  endif
+             127                     
+             128     1                  if (km==40) then
+             129     1                    ptop1=1.0
+             130     1                    hybrid1=.false.
+             131     1                  elseif (km==30) then
+             132     1                    ptop1=1.0
+             133     1                    hybrid1=.false.
+             134     1                  elseif (km==60) then
+             135     1                    ptop1=0.1
+             136     1                    hybrid1=.true.
+             137     1                  else
+             138     1                    print*,'Invalidated setting km',km,' Stop program !!'
+             139     1                    stop
+             140     1                  endif
+             141                     
+             142     1                  if (lev==40) then
+             143     1                    ptop2=1.0
+             144     1                    hybrid2=.false.
+             145     1                  elseif (lev==60) then
+             146     1                    ptop2=0.1
+             147     1                    hybrid2=.true.
+             148     1                  else
+             149     1                    print*,'Invalidated setting lev',lev,' Stop program !!'
+             150     1                    stop
+             151     1                  endif
+             152                     
+             153                        write(6,*)'horizontal interpolation - from ',ggdef1(1:2),' to ',ggdef2(1:2)
+             154                        write(6,*)'vertical   interpolation - from ',km,' layers to ',lev,' layers'
+             155                        write(6,*)'hybrid vertical coordinate hybrid1 = ',hybrid1,' hybrid2 =',hybrid2
+             156                     
+             157                        !allocate arrays
+             158                        jm=im/2
+             159                        km=km
+             160                        my=nx/2
+             161                     
+             162                        allocate(pt(nx,my),plt(nx,km,my),pt2(nx,my),plt2(nx,lev,my)       &
+             163                                   ,sgeo(nx,my),plt2p(nx,lev,my)                             &
+             164                                   ,sig(km+1),sig40(40+1),sig30(30+1),puvphi(lmax)           &
+             165                                   ,pk(nx,km),pk2(nx,km),presp(nx,km+2,my)                   &
+             166                                   ,tens(km+2),pkx(nx,lev),pk2x(nx,lev)                      &
+             167                                   ,wkr(im,jm),xr(nx),yr(my),zz(nx,my,lmax)                  &
+             168                                   ,hld1(nx,my),fld1(nx,km+2,my),fld2(nx,lev,my)             &
+             169                                   ,phi(nx,lev,my),wkpz(nx,lev),anlslp(nx,my),t1000(nx,my)   &
+             170                                   ,wkp(nx,my),wkq(nx,my),qsat(nx,km,my),qsat2(nx,lev,my)    &
+             171                                   ,sigma(lev+1,2),aki(lev+1),bki(lev+1), stat=ierr)
+             172                     
+             173     1                  if (ierr .ne. 0) then
+             174     1                    write(6,*) 'allocate real fail '
+             175     1                    stop
+             176     1                  end if
+             177                     
+             178                        allocate(iwkr(im,jm),ihld(nx,my), stat=ierr)
+             179                     
+             180     1                  if (ierr .ne. 0) then
+             181     1                    write(6,*) 'allocate integer fail '
+             182     1                    stop
+             183     1                  end if
+             184                     
+             185                        allocate(irecfe(lmax), stat=ierr)
+             186                     
+             187     1                  if (ierr .ne. 0) then
+             188     1                    write(6,*) 'allocate character fail '
+             189     1                    stop
+             190     1                  end if
+             191                     
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    FULL UNROLLING
+                                   <<< Loop-information  End >>>
+             192             f          irecfe=(/'010000','020000','030000','050000','070000','100000',  &
+             193                                 '150000','200000','250000','300000','400000','500000',  &
+             194                                 '700000','850000','925000','h00000'/)
+             195                     
+             196             f          puvphi=(/10.,20.,30.,50.,70., 100.,150.,200.,250.,300.,400.     &
+             197                               ,500.,700., 850.,925.,1000./)
+             198                     
+             199                           ! for 40 layers
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    FULL UNROLLING
+                                   <<< Loop-information  End >>>
+             200             fv         sig40=(/0.000000,0.008139,0.018234,0.030288,0.044298,0.060266, &
+             201                                0.078192,0.098074,0.119914,0.143712,0.169467,0.197179, &
+             202                                0.226848,0.258475,0.292060,0.327601,0.365100,0.404557, &
+             203                                0.445970,0.489342,0.534670,0.579998,0.622202,0.661282, &
+             204                                0.697237,0.730067,0.759773,0.786354,0.809811,0.832097, &
+             205                                0.853213,0.873158,0.891933,0.909538,0.925972,0.941236, &
+             206                                0.955330,0.968253,0.980006,0.990588,1.000000/)
+             207                     
+             208                        ! for 30 layers
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    FULL UNROLLING
+                                   <<< Loop-information  End >>>
+             209             fv         sig30=(/0.000000,0.009788,0.023275,0.040460,0.061344,0.085927, &
+             210                                0.114208,0.146189,0.181867,0.221245,0.264321,0.311096, &
+             211                                0.361570,0.415742,0.473613,0.535183,0.596752,0.652503, &
+             212                                0.702436,0.746549,0.784844,0.817321,0.847361,0.874966, &
+             213                                0.900135,0.922869,0.943166,0.961028,0.976455,0.989445, &
+             214                                1.000000/)
+             215                     
+             216                        ! aki and bki for hybrid sigma-pressure coordinate
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    FULL UNROLLING
+                                   <<< Loop-information  End >>>
+             217             fv         aki=(/   .00000,   .85400,  1.82570,  2.93106,  4.18811,  5.61725, &
+             218                                7.24145,  9.08662, 11.18186, 13.55986, 16.25721, 19.37178, &
+             219                               22.77809, 26.69766, 31.12936, 36.13468, 41.78099, 48.14158, &
+             220                               55.29569, 63.32831, 72.32859, 82.26131, 92.84074,103.75080, &
+             221                              114.67568,125.30212,135.32210,144.43608,152.35664,158.81248, &
+             222                              163.55255,166.35379,167.12546,165.92496,162.84922,158.02912, &
+             223                              151.62865,143.84211,134.88958,125.01073,114.45724,103.48445, &
+             224                               92.34269, 81.26901, 70.47979, 60.16483, 50.48301, 41.55990, &
+             225                               33.48706, 26.32304, 20.09558, 14.80485, 10.42730,  6.91977, &
+             226                                4.22363,  2.26873,   .97701,   .26557,   .02193,   .00000, &
+             227                                0.00000/)
+             228                     
+             229             fv         bki=(/.00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+             230                              .00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+             231                              .00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+             232                              .00000000,.00000000,.00000104,.00013304,.00077978,.00235711, &
+             233                              .00528030,.00995912,.01679191,.02615862,.03841285,.05387320, &
+             234                              .07281429,.09545413,.12184549,.15185637,.18527624,.22182071, &
+             235                              .26113359,.30279276,.34632012,.39119502,.43687069,.48279246, &
+             236                              .52841650,.57322786,.61675643,.65858995,.69838324,.73586353, &
+             237                              .77083188,.80316112,.83279100,.85972113,.88400268,.90572942, &
+             238                              .92502870,.94205290,.95697164,.96996497,.98124505,.99058760, &
+             239                              1.00000000/)
+             240                     
+             241                     !CWB2015 <<<
+             242                     
+             243                     !
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             244             8v         sigma(:,1) = bki(:)
+             245             8v         sigma(:,2) = aki(:)
+             246                     
+             247     1                  if (km==40) then
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             248     1       8v           sig=sig40
+             249     1                  elseif (km==30) then
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             250     1       8v           sig=sig30
+             251     1                  else
+             252     1                    print*,'Invalidated setting km',km,' Stop program !!'
+             253     1                    stop
+             254     1                  endif
+             255                     
+             256                     !
+             257                        capa= 1.0/3.5
+             258                        rgas= capa*cp
+             259                        first=.true.
+             260                        horizon_intpo = (im*jm) .ne. (nx*my)
+             261                        !horizon_intpo = .true.
+             262                     !
+             263                     !  read in arguments from outside
+             264                     !
+             265                           nargc=iargc()
+             266     1                     if(nargc.eq.0)then
+             267     1                       print*,'input -- cdtg ctau_guess, ex. 02070112 0006 '
+             268     1                       stop
+             269     1                     else
+             270     1                       call getarg(1,cdtg8)
+             271     1                       call getarg(2,ctau)
+             272     1                     endif
+             273                           print*,'dtg    = ',cdtg8
+             274                           print*,'tau    = ',ctau
+             275                     !
+             276                     ! transfer idtg8 to idtg (i12)
+             277                     !
+             278     1                     if( cdtg8(1:1) .ne. '9' ) then
+             279     1                      cdtg='20'//cdtg8//'00'
+             280     1                     else
+             281     1                      cdtg='19'//cdtg8//'00'
+             282     1                     end if
+             283                           read(cdtg,'(i12)')idtg
+             284                           read(ctau,'(i4)')itaup
+             285                           call dtgfix12(idtg,idtg_fg,-itaup)
+             286                           print*,'itaup= ',itaup
+             287                           print*,'idtg= ',idtg
+             288                           print*,'idtg_fg= ',idtg_fg
+             289                     !
+             290                     ! specify the dms read-in and write-out only for 34 keys
+             291                     !
+             292                           type_r="RORDER"//char(0)
+             293                           type_w="WORDER"//char(0)
+             294                           argument="34"//char(0)
+             295                           call dmscfg(type_r,argument,istat_r)
+             296                           call dmscfg(type_w,argument,istat_w)
+             297                           istat = abs(istat_r) + abs(istat_w)
+             298     1                     if(istat.ne.0)then
+             299     1                       print *,'dmscfg error'
+             300     1                       call dmsexit(-1)
+             301     1                     endif
+             302                     !
+             303                           call dmsmsg("ALL",istat)
+             304                           call dmsopn(bck,"r",istat)
+             305                           call dmsopn(ifilin,"r",istat)
+             306                           call dmsopn(ifilout,"w",istat)
+             307                     !
+             308                     !  (1) read in the original data at the (im, jm) grids
+             309                     !  (2) interpolate the data from (im, jm) to (nx, my)
+             310                     !
+             311                           lenrec1 = im*jm
+             312                           lenrec2 = nx*my
+             313                     !
+             314     1                     if(ksgeo.eq.99) then
+             315     1                       topohgt='gbkf'
+             316     1                     else
+             317     1                       write(topohgt,'(a3,i1.1)')'gbk',ksgeo
+             318     1                     end if
+             319                           write(lrec,'("s00060",a4,a4,12x)')topohgt,ggdef2
+             320                           print*,'keysgeo= ',lrec
+             321                           call dmsread (nx,my,lrec,lenrec2,'H',bck,sgeo,istat)
+             322                     !
+             323     1                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             324     2       8v            do i = 1, nx
+             325     2       8v             sgeo(i,j) = sgeo(i,j)*grav
+             326     2       8v            end do
+             327     1                     end do
+             328                     
+             329                     !======================================================== time loop
+             330     1                 do nt = 1, 2
+             331     1               !
+             332     2                   if( nt .eq. 1 )then
+             333     2                     itaux = itaup
+             334     2                     idtgx = idtg_fg
+             335     2                   elseif( nt .eq. 2)then
+             336     2                     itaux = 0
+             337     2                     idtgx = idtg
+             338     2                   end if
+             339     1                   print*,'idtgx= ',idtgx
+             340     1               
+             341     1               !                  --- terrain pressure ---
+             342     1                   call syslbl ('b00010',idtgx,itaux,ggdef1,lrec)
+             343     1                   call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             344     2                   if( horizon_intpo ) then
+             345     2                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,pt,0,xr,yr,first)
+             346     2                   endif
+             347     1                   first=.false.
+             348     1               !
+             349     1               !  calculate pt based on phi on p levels
+             350     1               !
+             351     2        s          do k = 1, lmax
+             352     2        s            call syslbl(irecfe(k),idtgx,itaux,ggdef1,lrec)
+             353     2        s            call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             354     3        s            if( horizon_intpo ) then
+             355     3        s              call xyintpo ('gg',im,jm,'gg',nx,my,wkr,zz(1,1,k),0,xr,yr,first)
+             356     3        v            endif
+             357     2        v          enddo
+             358     1               !
+             359     1                   call syslbl ('ssl010',idtgx,itaux,ggdef1,lrec)
+             360     1                   call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             361     2                   if( horizon_intpo ) then
+             362     2                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,anlslp,0,xr,yr,first)
+             363     2                   endif
+             364     1               !
+             365     1                   call syslbl ('h00100',idtgx,itaux,ggdef1,lrec)
+             366     1                   call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             367     2                   if( horizon_intpo ) then
+             368     2                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,t1000,0,xr,yr,first)
+             369     2                   endif
+             370     1               !
+             371     1                   call phi2pt(nx,my,lmax,zz,anlslp,t1000,puvphi,sgeo,pt2)
+             372     1               !
+             373     1                   call syslbl ('b00010',idtgx,itaux,ggdef2,lrec)
+             374     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,pt2,istat)
+             375     1               !
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             376     2       8v          do i = 1, nx*my
+             377     2       8v            pt(i,1) = pt(i,1)-ptop1
+             378     2       8v            pt2(i,1)= pt2(i,1)-ptop2
+             379     2       8v          end do
+             380     1               !
+             381     1                   nxj=nx
+             382     2                   do j = 1, my
+             383     2               !DS >>>
+             384     3                     if (hybrid1) then
+             385     3                       call prexp_hybrid_cwb( nxj,nx,lev,ptop1,sigma, pt(1,j), pk, pk2, plt(1,1,j))
+             386     3                     else
+             387     3                       call prexp( nx, km,ptop1, sig, pt(1,j), pk, pk2, plt(1,1,j))
+             388     3                     endif
+             389     2               
+             390     3                     if (hybrid2) then
+             391     3                       call prexp_hybrid_cwb( nxj,nx,lev,ptop2,sigma,pt2(1,j),pkx,pk2x,plt2(1,1,j))
+             392     3               !       else
+             393     3               !        call prexp( nx,lev,ptop2,sig,pt2(1,j),pkx,pk2x,plt2(1,1,j))
+             394     3                     endif
+             395     2               !<<<<
+             396     2               !
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             397     3       4v            do i = 1, nx*km
+             398     3       4v              presp(i,2,j) = log(plt(i,1,j))
+             399     3       4v            end do
+             400     2               
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             401     3       4v            do i = 1, nx*lev
+             402     3       4v              plt2p(i,1,j)=plt2(i,1,j)
+             403     3       4v              plt2(i,1,j) = log(plt2(i,1,j))
+             404     3       4v            end do
+             405     2                   end do
+             406     1               !
+             407     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    PREFETCH       : 4
+                                   <<<      plt: 4
+                                   <<< Loop-information  End >>>
+             408     3        s          do i = 1, nx
+             409     4        m            if(plt2(i,lev,j) .le. presp(i,km+1,j))then
+             410     4        s              presp(i,km+2,j) = log(1.001*plt(i,km,j))
+             411     4        s            else
+             412     4        s              presp(i,km+2,j) = plt2(i,lev,j)+log(1.001)
+             413     4        v            end if
+             414     3               !
+             415     4        m            if(plt2(i,1,j) .ge. presp(i,2,j))then
+             416     4        s              presp(i,1,j) = log(0.999*plt(i,1,j))
+             417     4        s            else
+             418     4               !jh         presp(i,1,j) = plt2(i,1,j)+log(0.999)
+             419     4        s               presp(i,1,j) = plt2(i,1,j)+log(0.0999)
+             420     4        v            end if
+             421     3        v          end do
+             422     2                   end do
+             423     1               !
+             424     1               !     do i = 1, nx*km
+             425     1               !      plt(i,1,j) = log(plt(i,1,j))
+             426     1               !     end do
+             427     1               !
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             428     2       8v          do k = 1, km+2
+             429     2       8v            tens(k) = 1.0
+             430     2       8v          end do
+             431     1                   tens(1) = 0.
+             432     1                   tens(km+2) = 0.
+             433     1               
+             434     1               !---- tt/phi begin
+             435     1                   iwnd = 0
+             436     1                   nxmy = nx*my
+             437     2                   do k = 1, km
+             438     2               !                   --- temperature ---
+             439     2                     write (typ, '("m",i2.2,"100")' ) k
+             440     2                     call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             441     2                     call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             442     3                     if( horizon_intpo ) then
+             443     3                       call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             444     3                     endif
+             445     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             446     4       8v            do i = 1, nx
+             447     4       8v              fld1(i,k+1,j) = hld1(i,j)
+             448     4       8v              wkp(i,j) = plt(i,k,j)
+             449     4       8v            end do
+             450     3                     end do
+             451     2               !
+             452     2                     call qsatq(nxmy,hld1,wkp,wkq)
+             453     3                     do j = 1, my
+             454     4                     do i = 1, nx
+             455     4                       qsat(i,k,j) = wkq(i,j)
+             456     4                     end do
+             457     3                     end do
+             458     2               !
+             459     2                   end do
+             460     1               !
+             461     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             462     3       6v            do i = 1, nx
+             463     3       6v              fld1(i,1,j) = fld1(i,2,j)
+             464     3       6v              dtt = (presp(i,km+2,j)-presp(i,km+1,j))*fld1(i,km+1,j)*rgas*0.0065/grav
+             465     3       6v              fld1(i,km+2,j) = fld1(i,km+1,j)+dtt
+             466     3       6v            end do
+             467     2               !
+             468     2                     call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             469     2                   end do
+             470     1               !
+             471     1               !---
+             472     2                   do k = 1, lev
+             473     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             474     4       4v            do i = 1, nx
+             475     4       4v              hld1(i,j) = fld2(i,k,j)
+             476     4       4v              wkp(i,j) = exp( plt2(i,k,j) )
+             477     4       4v            end do
+             478     3                     end do
+             479     2                     write (typ, '("m",i2.2,"100")' ) k
+             480     2                     call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             481     2                     call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             482     2               !
+             483     2                     call qsatq(nxmy,hld1,wkp,wkq)
+             484     3                     do j = 1, my
+             485     4                     do i = 1, nx
+             486     4                      qsat2(i,k,j) = wkq(i,j)
+             487     4                     end do
+             488     3                     end do
+             489     2               !
+             490     2                   end do
+             491     1               !
+             492     1               !  derive geopotential height from temp
+             493     1               !
+             494     2                   do j = 1, my
+             495     2               !
+             496     2               !      call prexp( nx,lev,ptop2,sig2,pt2(1,j),pkx,pk2x,wkpz)
+             497     2                     call prexp_hybrid_cwb(nxj,nx,lev,ptop2,sigma,pt2(1,j),pkx,pk2x,wkpz)
+             498     2               !
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             499     3       6v            do i = 1, nx
+             500     3       6v              phi(i,lev,j)= cp*fld2(i,lev,j)*(pk2x(i,lev)-pkx(i,lev)) + sgeo(i,j)
+             501     3       6v            end do
+             502     2               !
+             503     3                     do k = lev-1,1,-1
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             504     4       6v            do i = 1, nx
+             505     4       6v              phi(i,k,j)= phi(i,k+1,j)+cp*(fld2(i,k,j)*(pk2x(i,k)-pkx(i,k)) &
+             506     4                                + fld2(i,k+1,j)*(pkx(i,k+1)-pk2x(i,k)))
+             507     4       6v            end do
+             508     3                     end do
+             509     2               !
+             510     2                   end do
+             511     1               !
+             512     2                   do k = 1, lev
+             513     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             514     4       8v            do i = 1, nx
+             515     4       8v              hld1(i,j) = phi(i,k,j)/grav
+             516     4       8v            end do
+             517     3                     end do
+             518     2                     write (typ, '("m",i2.2,"000")' ) k
+             519     2                     call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             520     2                     call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             521     2                   end do
+             522     1               !--- tt/phi end
+             523     1               
+             524     1               
+             525     1                   iwnd = 0
+             526     2                   do k = 1, km
+             527     2               !                   --- mixing ratio ---
+             528     2                     write (typ, '("m",i2.2,"500")' ) k
+             529     2                     call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             530     2                     call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             531     3                     if( horizon_intpo ) then
+             532     3                       call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             533     3                     endif
+             534     2               
+             535     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             536     4       6v            do i = 1, nx
+             537     4               !jh       fld1(i,k+1,j) = min(1.0, max(0.001, hld1(i,j)/qsat(i,k,j)))
+             538     4       6v              hld1(i,j)=max(1.0e-8,hld1(i,j))
+             539     4               !jh       fld1(i,k+1,j) = min(1.0, hld1(i,j)/qsat(i,k,j))
+             540     4       6v              fld1(i,k+1,j) = hld1(i,j)
+             541     4       6v            end do
+             542     3                     end do
+             543     2                   end do
+             544     1               !
+             545     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             546     3       8v            do i = 1, nx
+             547     3       8v              fld1(i,1,j) = fld1(i,2,j)
+             548     3       8v              fld1(i,km+2,j) = fld1(i,km+1,j)
+             549     3       8v            end do
+             550     2               !
+             551     2                     call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             552     2                   end do
+             553     1               !
+             554     2                   do k = 1, lev
+             555     2               !        print *,'k=',k,' plt2p(556,k,438)=',plt2p(556,k,438)
+             556     2               !        print *,'bef fld2(556,k,438)=',fld2(556,k,438)
+             557     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    PREFETCH       : 72
+                                   <<<      hld1: 72
+                                   <<< Loop-information  End >>>
+             558     4       4s            do i = 1, nx
+             559     4               !jh       hld1(i,j) = min(1.0, max(0.001, fld2(i,k,j)))*qsat2(i,k,j)
+             560     4               !        hld1(i,j)=min(1.0, max(1.0e-7,fld2(i,k,j)))
+             561     4               !        hld1(i,j)=hld1(i,j)*qsat2(i,k,j)
+             562     4       4v              hld1(i,j)= max(1.0e-8,fld2(i,k,j))
+             563     5       4m                if( plt2p(i,k,j) .le. 2. )then
+             564     5       4s                  if(hld1(i,j) .gt. 7.5e-6)hld1(i,j)=7.5e-6
+             565     5       4s                  if(hld1(i,j) .lt. 2.5e-6)hld1(i,j)=2.5e-6
+             566     5       4s                else if( plt2p(i,k,j) .le. 50. .and. plt2p(i,k,j) .gt. 2.)then
+             567     5       4s                  if(hld1(i,j) .gt. 1.2e-5)hld1(i,j)=1.2e-5
+             568     5       4s                  if(hld1(i,j) .lt. 2.0e-6)hld1(i,j)=2.0e-6
+             569     5       4s                else if( plt2p(i,k,j) .le. 100. .and. plt2p(i,k,j) .gt. 50.)then
+             570     5       4s                  if(hld1(i,j) .gt. 8.0e-6)hld1(i,j)=8.0e-6
+             571     5       4s                  if(hld1(i,j) .lt. 1.0e-7)hld1(i,j)=1.0e-7
+             572     5       4v                end if
+             573     4       4v            end do
+             574     3                     end do
+             575     2               !        print *,'aft hld1(556,438)=',hld1(556,438)
+             576     2                     write (typ, '("m",i2.2,"500")' ) k
+             577     2                     call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             578     2                     call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             579     2                   end do
+             580     1               !
+             581     1               !  only first guest for cloud water content
+             582     1               !
+             583     2                   if( nt .eq. 1 )then
+             584     2               
+             585     2                     iwnd = 0
+             586     3                     do k = 1, km
+             587     3               !                   --- cloud water content ---
+             588     3                       write (typ, '("m",i2.2,"550")' ) k
+             589     3                       call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             590     3                       call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             591     4                       if( horizon_intpo ) then
+             592     4                         call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             593     4                       endif
+             594     4                       do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             595     5       8v              do i = 1, nx
+             596     5       8v                fld1(i,k+1,j) = hld1(i,j)
+             597     5       8v              end do
+             598     4                       end do
+             599     3               !
+             600     3                     end do
+             601     2               !
+             602     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             603     4       8v              do i = 1, nx
+             604     4       8v                fld1(i,1,j) = fld1(i,2,j)
+             605     4       8v                fld1(i,km+2,j) = fld1(i,km+1,j)
+             606     4       8v              end do
+             607     3               !
+             608     3                       call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             609     3                     end do
+             610     2               !
+             611     3                     do k = 1, lev
+             612     4                       do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    PREFETCH       : 12
+                                   <<<      hld1: 12
+                                   <<< Loop-information  End >>>
+             613     5       6s              do i = 1, nx
+             614     5               !jh       hld1(i,j) = max(0.0000001, fld2(i,k,j))
+             615     5       6v                hld1(i,j) = max(1.e-12, fld2(i,k,j))
+             616     6       6m                if( plt2p(i,k,j) .le. 50. )then
+             617     6       6s                   if(hld1(i,j) .gt. 1.e-12)hld1(i,j)=1.e-12
+             618     6       6v                end if
+             619     5       6v              end do
+             620     4                       end do
+             621     3                       write (typ, '("m",i2.2,"550")' ) k
+             622     3                       call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             623     3                       call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             624     3                     end do
+             625     2               
+             626     2                   endif
+             627     1               !
+             628     1                   iwnd = 1
+             629     2                   do k = 1, km
+             630     2               !                   --- wind ---
+             631     2                     write (typ, '("m",i2.2,"200")' ) k
+             632     2                     call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             633     2                     call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             634     3                     if( horizon_intpo ) then
+             635     3                       call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             636     3                     endif
+             637     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             638     4       8v            do i = 1, nx
+             639     4       8v              fld1(i,k+1,j) = hld1(i,j)
+             640     4       8v            end do
+             641     3                     end do
+             642     2               !
+             643     2                   end do
+             644     1               !
+             645     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             646     3       8v            do i = 1, nx
+             647     3       8v              fld1(i,1,j) = fld1(i,2,j)
+             648     3       8v              fld1(i,km+2,j) = fld1(i,km+1,j)
+             649     3       8v            end do
+             650     2               !
+             651     2                     call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             652     2                   end do
+             653     1               !
+             654     2                   do k = 1, lev
+             655     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             656     4       8v            do i = 1, nx
+             657     4       8v              hld1(i,j) = fld2(i,k,j)
+             658     4       8v            end do
+             659     3                     end do
+             660     2                     write (typ, '("m",i2.2,"200")' ) k
+             661     2                     call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             662     2                     call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             663     2                   end do
+             664     1               !
+             665     2                   do k = 1, km
+             666     2                     write (typ, '("m",i2.2,"210")' ) k
+             667     2                     call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             668     2                     call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             669     3                     if( horizon_intpo ) then
+             670     3                       call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             671     3                     endif
+             672     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             673     4       8v            do i = 1, nx
+             674     4       8v              fld1(i,k+1,j) = hld1(i,j)
+             675     4       8v            end do
+             676     3                     end do
+             677     2                   end do
+             678     1               !
+             679     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             680     3       8v            do i = 1, nx
+             681     3       8v              fld1(i,1,j) = fld1(i,2,j)
+             682     3       8v              fld1(i,km+2,j) = fld1(i,km+1,j)
+             683     3       8v            end do
+             684     2               !
+             685     2                     call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             686     2                   end do
+             687     1               !
+             688     2                   do k = 1, lev
+             689     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             690     4       8v            do i = 1, nx
+             691     4       8v              hld1(i,j) = fld2(i,k,j)
+             692     4       8v            end do
+             693     3                     end do
+             694     2                     write (typ, '("m",i2.2,"210")' ) k
+             695     2                     call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             696     2                     call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             697     2                   end do
+             698     1               !
+             699     2                   if( nt .eq. 2 )then
+             700     2               !       go to 1371   ! no Ozone
+             701     2               !                   --- ozone ---
+             702     3                     do k = 1, km
+             703     3                       write (typ, '("m",i2.2,"560")' ) k
+             704     3                       call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+             705     3                       call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             706     3                       if(istat.ne.0) go to 1371 ! no Ozone
+             707     3               
+             708     4                       if( horizon_intpo ) then
+             709     4                         call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+             710     4                       endif
+             711     4                       do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             712     5       8v              do i = 1, nx
+             713     5       8v                fld1(i,k+1,j) = hld1(i,j)
+             714     5       8v              enddo
+             715     4                       enddo
+             716     3                     enddo
+             717     2               !
+             718     3                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+             719     4       8v              do i = 1, nx
+             720     4       8v                fld1(i,1,j) = fld1(i,2,j)
+             721     4       8v                fld1(i,km+2,j) = fld1(i,km+1,j)
+             722     4       8v              end do
+             723     3                       call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+             724     3                     end do
+             725     2               !
+             726     3                     do k = 1, lev
+             727     4                       do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             728     5       8s              do i = 1, nx
+             729     5       8v                hld1(i,j) = fld2(i,k,j)
+             730     5       8s                if(hld1(i,j).lt.1.e-10)hld1(i,j)=1.e-10
+             731     5       8v              end do
+             732     4                       end do
+             733     3                       write (typ, '("m",i2.2,"560")' ) k
+             734     3                       call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+             735     3                       call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             736     3                     enddo
+             737     2               
+             738     2                1371 continue
+             739     2               ! endif nt.eq.2
+             740     2                   endif
+             741     1               !
+             742     1                 end do
+             743                     !======================================================== end of time loop
+             744                     !
+             745                     !  some fields at the surface
+             746                     !
+             747                       itaux = 0
+             748                     !
+             749     1                 if( horizon_intpo ) then   !***************************************8
+             750     1               !                             ---- SST ----
+             751     1                   call syslbl ('w00100',idtg,itaux,ggdef1,lrec)
+             752     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             753     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             754     1                   call syslbl ('w00100',idtg,itaux,ggdef2,lrec)
+             755     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             756     1               
+             757     1               !                             ---- ice mask ----
+             758     1                   call syslbl ('w00090',idtg,itaux,ggdef1,lrec)
+             759     1                   call dmsreadi(im,jm,lrec,lenrec1,'I',ifilin,iwkr,istat)
+             760     2                   do j = 1, jm
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             761     3       8v            do i = 1, im
+             762     3       8v              wkr(i,j) = float(iwkr(i,j))
+             763     3       8v            end do
+             764     2                   end do
+             765     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             766     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             767     3       6v            do i = 1, nx
+             768     3       6v              ihld(i,j) = min( 1, int(hld1(i,j)+0.5) )
+             769     3       6v            end do
+             770     2                   end do
+             771     1                   call syslbl ('w00090',idtg,itaux,ggdef2,lrec)
+             772     1                   call dmswriti(nx,my,lrec,lenrec2,'I',ifilout,ihld,istat)
+             773     1               
+             774     1               ! tau=000                        ---- snow depth ----
+             775     1                   call syslbl ('b00650',idtg,itaux,ggdef1,lrec)
+             776     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             777     1                   call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             778     1                   print*,'B65-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             779     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             780     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             781     3       6v          do i = 1, nx
+             782     3       6v            hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             783     3       6v          end do
+             784     2                   end do
+             785     1                   call syslbl ('b00650',idtg,itaux,ggdef2,lrec)
+             786     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             787     1                   call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             788     1                   print*,'B65-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             789     1               
+             790     1               !                               ---- ice fraction ------
+             791     1                   call syslbl ('w00091',idtg,itaux,ggdef1,lrec)
+             792     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             793     1                   call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             794     1                   print*,'w00091-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             795     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             796     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             797     3       6v          do i = 1, nx
+             798     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             799     3       6v          end do
+             800     2                   end do
+             801     1                   call syslbl ('w00091',idtg,itaux,ggdef2,lrec)
+             802     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             803     1                   call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             804     1                   print*,'w00091-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             805     1               
+             806     1               ! tau=006                      ---- snow depth ----
+             807     1                   call syslbl ('b00650',idtg_fg,itaup,ggdef1,lrec)
+             808     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             809     1                   call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             810     1                   print*,'B65-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             811     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             812     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             813     3       6v          do i = 1, nx
+             814     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             815     3       6v          end do
+             816     2                   end do
+             817     1                   call syslbl ('b00650',idtg_fg,itaup,ggdef2,lrec)
+             818     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             819     1                   call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             820     1                   print*,'B65-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             821     1               
+             822     1               !                             ---- ground wetness ----
+             823     1                   call syslbl ('s005a1',idtg_fg,itaup,ggdef1,lrec)
+             824     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             825     1                   call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             826     1                   print*,'S54-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             827     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             828     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             829     3       6v          do i = 1, nx
+             830     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             831     3       6v          end do
+             832     2                   end do
+             833     1                   call syslbl ('s005a1',idtg_fg,itaup,ggdef2,lrec)
+             834     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             835     1                   call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             836     1                   print*,'S54-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             837     1               
+             838     1               !                             ---- ground temperature ----
+             839     1                   call syslbl ('s00100',idtg_fg,itaup,ggdef1,lrec)
+             840     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             841     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             842     1                   call syslbl ('s00100',idtg_fg,itaup,ggdef2,lrec)
+             843     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             844     1                   print*,' after interpo -- tg at (49,84) = ',hld1(49,84)
+             845     1               
+             846     1               !                             ---- soil temperature ----
+             847     1                   call syslbl ('s01100',idtg_fg,itaup,ggdef1,lrec)
+             848     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             849     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             850     1                   call syslbl ('s01100',idtg_fg,itaup,ggdef2,lrec)
+             851     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             852     1               
+             853     1               !
+             854     1                   call syslbl ('s02100',idtg_fg,itaup,ggdef1,lrec)
+             855     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             856     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             857     1                   call syslbl ('s02100',idtg_fg,itaup,ggdef2,lrec)
+             858     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             859     1               
+             860     1               !                             ---- soil moisture ----
+             861     1                   call syslbl ('s005c0',idtg_fg,itaup,ggdef1,lrec)
+             862     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             863     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             864     1               !  canopy must be non-negative
+             865     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             866     3       6v          do i = 1, nx
+             867     3       6v             hld1(i,j) = max( 0., min(hld1(i,j),0.5) )
+             868     3       6v          end do
+             869     2                   end do
+             870     1                   call syslbl ('s005c0',idtg_fg,itaup,ggdef2,lrec)
+             871     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             872     1               
+             873     1               !
+             874     1                   call syslbl ('s015b0',idtg_fg,itaup,ggdef1,lrec)
+             875     1                   call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             876     1                   call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             877     2                   do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             878     3       6v          do i = 1, nx
+             879     3       6v            hld1(i,j) = max( 0., min(hld1(i,j),1.0) )
+             880     3       6v          end do
+             881     2                   end do
+             882     1                   call syslbl ('s015b0',idtg_fg,itaup,ggdef2,lrec)
+             883     1                   call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             884     1               
+             885     1               !
+             886     1                     call syslbl ('s025b0',idtg_fg,itaup,ggdef1,lrec)
+             887     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             888     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             889     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             890     3       6v            do i = 1, nx
+             891     3       6v             hld1(i,j) = max( 0., min(hld1(i,j),1.0) )
+             892     3       6v            end do
+             893     2                     end do
+             894     1                     call syslbl ('s025b0',idtg_fg,itaup,ggdef2,lrec)
+             895     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             896     1               
+             897     1               !
+             898     1                     call syslbl ('w00092',idtg_fg,itaup,ggdef1,lrec)
+             899     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             900     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             901     1                     print*,'w00092 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             902     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             903     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             904     3       6v            do i = 1, nx
+             905     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             906     3       6v            end do
+             907     2                     end do
+             908     1                     call syslbl ('w00092',idtg_fg,itaup,ggdef2,lrec)
+             909     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             910     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             911     1                     print*,'w00092 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             912     1               
+             913     1               !
+             914     1                     call syslbl ('b10200',idtg_fg,itaup,ggdef1,lrec)
+             915     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             916     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             917     1                     print*,'b10200 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             918     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             919     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             920     3       6v            do i = 1, nx
+             921     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             922     3       6v            end do
+             923     2                     end do
+             924     1                     call syslbl ('b10200',idtg_fg,itaup,ggdef2,lrec)
+             925     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             926     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             927     1                     print*,'b10200 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             928     1               !
+             929     1                     call syslbl ('b10210',idtg_fg,itaup,ggdef1,lrec)
+             930     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             931     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             932     1                     print*,'b10210 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             933     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             934     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             935     3       6v            do i = 1, nx
+             936     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             937     3       6v            end do
+             938     2                     end do
+             939     1                     call syslbl ('b10210',idtg_fg,itaup,ggdef2,lrec)
+             940     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             941     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             942     1                     print*,'b10210 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             943     1               !
+             944     1                     call syslbl ('l015b0',idtg_fg,itaup,gmdef1,lrec)
+             945     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             946     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             947     1                     print*,'l015b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             948     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             949     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             950     3       6v            do i = 1, nx
+             951     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             952     3       6v            end do
+             953     2                     end do
+             954     1                     call syslbl ('l015b0',idtg_fg,itaup,gmdef2,lrec)
+             955     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             956     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             957     1                     print*,'l015b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             958     1               !
+             959     1                     call syslbl ('l015b1',idtg_fg,itaup,gmdef1,lrec)
+             960     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             961     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             962     1                     print*,'l015b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             963     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             964     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             965     3       6v            do i = 1, nx
+             966     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             967     3       6v            end do
+             968     2                     end do
+             969     1                     call syslbl ('l015b1',idtg_fg,itaup,gmdef2,lrec)
+             970     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             971     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             972     1                     print*,'l015b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             973     1               !
+             974     1                     call syslbl ('l01100',idtg_fg,itaup,gmdef1,lrec)
+             975     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             976     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             977     1                     print*,'l01100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             978     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             979     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             980     3       6v            do i = 1, nx
+             981     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             982     3       6v            end do
+             983     2                     end do
+             984     1                     call syslbl ('l01100',idtg_fg,itaup,gmdef2,lrec)
+             985     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+             986     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+             987     1                     print*,'l01100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             988     1               !
+             989     1                     call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+             990     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+             991     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+             992     1                     print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+             993     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+             994     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             995     3       6v            do i = 1, nx
+             996     3       6v             hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+             997     3       6v            end do
+             998     2                     end do
+             999     1                     call syslbl ('l025b0',idtg_fg,itaup,gmdef2,lrec)
+            1000     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1001     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1002     1                     print*,'l025b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1003     1               !
+            1004     1                     call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+            1005     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1006     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1007     1                     print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1008     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1009     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1010     3       6v            do i = 1, nx
+            1011     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1012     3       6v            end do
+            1013     2                     end do
+            1014     1                     call syslbl ('l025b1',idtg_fg,itaup,gmdef2,lrec)
+            1015     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1016     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1017     1                     print*,'l025b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1018     1               !
+            1019     1                     call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+            1020     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1021     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1022     1                     print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1023     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1024     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1025     3       6v            do i = 1, nx
+            1026     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1027     3       6v            end do
+            1028     2                     end do
+            1029     1                     call syslbl ('l02100',idtg_fg,itaup,gmdef2,lrec)
+            1030     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1031     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1032     1                     print*,'l02100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1033     1               !
+            1034     1                     call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+            1035     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1036     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1037     1                     print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1038     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1039     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1040     3       6v            do i = 1, nx
+            1041     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1042     3       6v            end do
+            1043     2                     end do
+            1044     1                     call syslbl ('l035b0',idtg_fg,itaup,gmdef2,lrec)
+            1045     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1046     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1047     1                     print*,'l035b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1048     1               !
+            1049     1                     call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+            1050     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1051     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1052     1                     print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1053     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1054     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1055     3       6v            do i = 1, nx
+            1056     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1057     3       6v            end do
+            1058     2                     end do
+            1059     1                     call syslbl ('l035b1',idtg_fg,itaup,gmdef2,lrec)
+            1060     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1061     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1062     1                     print*,'l035b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1063     1               !
+            1064     1                     call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+            1065     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1066     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1067     1                     print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1068     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1069     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1070     3       6v            do i = 1, nx
+            1071     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1072     3       6v            end do
+            1073     2                     end do
+            1074     1                     call syslbl ('l03100',idtg_fg,itaup,gmdef2,lrec)
+            1075     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1076     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1077     1                     print*,'l03100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1078     1               !
+            1079     1                     call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+            1080     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1081     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1082     1                     print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1083     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1084     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1085     3       6v            do i = 1, nx
+            1086     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1087     3       6v            end do
+            1088     2                     end do
+            1089     1                     call syslbl ('l045b0',idtg_fg,itaup,gmdef2,lrec)
+            1090     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1091     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1092     1                     print*,'l045b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1093     1               !
+            1094     1                     call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+            1095     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1096     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1097     1                     print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1098     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1099     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1100     3       6v            do i = 1, nx
+            1101     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1102     3       6v            end do
+            1103     2                     end do
+            1104     1                     call syslbl ('l045b1',idtg_fg,itaup,gmdef2,lrec)
+            1105     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1106     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1107     1                     print*,'l045b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1108     1               !
+            1109     1                     call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+            1110     1                     call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+            1111     1                     call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+            1112     1                     print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1113     1                     call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+            1114     2                     do j = 1, my
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+            1115     3       6v            do i = 1, nx
+            1116     3       6v              hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+            1117     3       6v            end do
+            1118     2                     end do
+            1119     1                     call syslbl ('l04100',idtg_fg,itaup,gmdef2,lrec)
+            1120     1                     call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+            1121     1                     call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+            1122     1                     print*,'l04100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+            1123     1               !
+            1124     1                1090 continue
+            1125     1                     end if
+            1126                     !
+            1127                     
+            1128                           call dmscls(bck,istat)
+            1129                           call dmscls(ifilin,istat)
+            1130                           call dmscls(ifilout,istat)
+            1131                     
+            1132                     !CWB2015 >>>
+            1133                           deallocate(pt,plt,pt2,plt2                        &
+            1134                                    ,sgeo,plt2p                              &
+            1135                                    ,sig,sig30,sig40,puvphi,irecfe           &
+            1136                                    ,pk,pk2,presp                            &
+            1137                                    ,tens,pkx,pk2x                           &
+            1138                                    ,wkr,iwkr,xr,yr,zz                       &
+            1139                                    ,hld1,fld1,fld2                          &
+            1140                                    ,phi,wkpz,anlslp,t1000                   &
+            1141                                    ,wkp,wkq,qsat,qsat2                      &
+            1142                                    ,ihld                                    &
+            1143                                    ,sigma,aki,bki)
+            1144                     !CWB2015 <<<
+            1145                     
+            1146                     !     call dmsexit(0)
+            1147                     !
+            1148                           stop'normal termination'
+            1149                           end program gm2gm_main
+
+ Diagnostic messages: program name(gm2gm_main)
+   jwd8220o-i  "gm2gm_main.f90", line 1: Optimizations is performed in this program unit with possibility of side effects. See informational messages below to determine which such optimizations have been performed.
+   jwd6123s-i  "gm2gm_main.f90", line 192: SIMD conversion cannot be applied to DO loop: a data with restricted type was found in the DO loop.
+   jwd6003s-i  "gm2gm_main.f90", line 200: SIMD conversion is applied to array description.
+   jwd6003s-i  "gm2gm_main.f90", line 209: SIMD conversion is applied to array description.
+   jwd6003s-i  "gm2gm_main.f90", line 217: SIMD conversion is applied to array description.
+   jwd6003s-i  "gm2gm_main.f90", line 244: SIMD conversion is applied to array description.
+   jwd8663o-i  "gm2gm_main.f90", line 244: This loop is not software pipelined because software pipelining is worthless for this loop.
+   jwd8202o-i  "gm2gm_main.f90", line 244: Loop unrolled 8 times.
+   jwd6003s-i  "gm2gm_main.f90", line 248: SIMD conversion is applied to array description.
+   jwd8204o-i  "gm2gm_main.f90", line 248: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 248: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6003s-i  "gm2gm_main.f90", line 250: SIMD conversion is applied to array description.
+   jwd8204o-i  "gm2gm_main.f90", line 250: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 250: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 324: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 324: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 324: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 192.
+   jwd6229s-i  "gm2gm_main.f90", line 351: SIMD conversion cannot be applied to DO loop: there are IF statements in the loop.
+   jwd8664o-i  "gm2gm_main.f90", line 351: This loop is not software pipelined because the loop contains an instruction not covered by software pipelining, such as function call.
+   jwd6208s-i  "gm2gm_main.f90", line 352: SIMD conversion cannot be applied to DO loop: the order of data references of definition 'lrec' may be different from the order of data references in serial execution.
+   jwd6122s-i  "gm2gm_main.f90", line 352: SIMD conversion cannot be applied to DO loop: a procedure reference was found in the loop.
+   jwd6208s-i  "gm2gm_main.f90", line 353: SIMD conversion cannot be applied to DO loop: the order of data references of definition 'wkr' may be different from the order of data references in serial execution.
+   jwd6208s-i  "gm2gm_main.f90", line 353: SIMD conversion cannot be applied to DO loop: the order of data references of definition 'jm' may be different from the order of data references in serial execution.
+   jwd6208s-i  "gm2gm_main.f90", line 353: SIMD conversion cannot be applied to DO loop: the order of data references of definition 'im' may be different from the order of data references in serial execution.
+   jwd6122s-i  "gm2gm_main.f90", line 353: SIMD conversion cannot be applied to DO loop: a procedure reference was found in the loop.
+   jwd6122s-i  "gm2gm_main.f90", line 355: SIMD conversion cannot be applied to DO loop: a procedure reference was found in the loop.
+   jwd6001s-i  "gm2gm_main.f90", line 376: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 376: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 376: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 397: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 397: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 397: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 96.
+   jwd6001s-i  "gm2gm_main.f90", line 401: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 401: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 401: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6229s-i  "gm2gm_main.f90", line 408: SIMD conversion cannot be applied to DO loop: there are IF statements in the loop.
+   jwd8670o-i  "gm2gm_main.f90", line 408: This loop is not software pipelined because the loop contains a branch instruction which is not for loop iteration.
+   jwd6001s-i  "gm2gm_main.f90", line 428: SIMD conversion is applied to DO loop with DO variable 'k'.
+   jwd8663o-i  "gm2gm_main.f90", line 428: This loop is not software pipelined because software pipelining is worthless for this loop.
+   jwd8202o-i  "gm2gm_main.f90", line 428: Loop unrolled 8 times.
+   jwd6001s-i  "gm2gm_main.f90", line 446: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8663o-i  "gm2gm_main.f90", line 446: This loop is not software pipelined because software pipelining is worthless for this loop.
+   jwd8202o-i  "gm2gm_main.f90", line 446: Loop unrolled 8 times.
+   jwd6001s-i  "gm2gm_main.f90", line 462: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 462: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 462: Loop unrolled 6 times.
+   jwd8209o-i  "gm2gm_main.f90", line 463: Evaluation order of polynomial expression is changed according to commutative law of addition and multiplication.
+   jwd8206o-i  "gm2gm_main.f90", line 464: Division is changed to multiplication by reciprocal.
+   jwd8209o-i  "gm2gm_main.f90", line 465: Evaluation order of polynomial expression is changed according to commutative law of addition and multiplication.
+   jwd6001s-i  "gm2gm_main.f90", line 474: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 474: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 474: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 160.
+   jwd6001s-i  "gm2gm_main.f90", line 499: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 499: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 499: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 120.
+   jwd8209o-i  "gm2gm_main.f90", line 500: Evaluation order of polynomial expression is changed according to commutative law of addition and multiplication.
+   jwd6001s-i  "gm2gm_main.f90", line 504: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 504: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 504: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 120.
+   jwd6001s-i  "gm2gm_main.f90", line 514: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 514: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 514: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 160.
+   jwd8206o-i  "gm2gm_main.f90", line 515: Division is changed to multiplication by reciprocal.
+   jwd6001s-i  "gm2gm_main.f90", line 536: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 536: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 536: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 96.
+   jwd6001s-i  "gm2gm_main.f90", line 546: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 546: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 546: Loop unrolled 8 times.
+   jwd6146s-i  "gm2gm_main.f90", line 558: SIMD conversion cannot be applied to DO loop: the effect cannot be expected to the loop including IF construct.
+   jwd8670o-i  "gm2gm_main.f90", line 558: This loop is not software pipelined because the loop contains a branch instruction which is not for loop iteration.
+   jwd8202o-i  "gm2gm_main.f90", line 558: Loop unrolled 4 times.
+   jwd6001s-i  "gm2gm_main.f90", line 595: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 595: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 595: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 603: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 603: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 603: Loop unrolled 8 times.
+   jwd6146s-i  "gm2gm_main.f90", line 613: SIMD conversion cannot be applied to DO loop: the effect cannot be expected to the loop including IF construct.
+   jwd8670o-i  "gm2gm_main.f90", line 613: This loop is not software pipelined because the loop contains a branch instruction which is not for loop iteration.
+   jwd8202o-i  "gm2gm_main.f90", line 613: Loop unrolled 6 times.
+   jwd6001s-i  "gm2gm_main.f90", line 638: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 638: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 638: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 646: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 646: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 646: Loop unrolled 8 times.
+   jwd6001s-i  "gm2gm_main.f90", line 656: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 656: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 656: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 673: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 673: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 673: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 680: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 680: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 680: Loop unrolled 8 times.
+   jwd6001s-i  "gm2gm_main.f90", line 690: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 690: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 690: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 712: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 712: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 712: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 128.
+   jwd6001s-i  "gm2gm_main.f90", line 719: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8662o-i  "gm2gm_main.f90", line 719: This loop is not software pipelined because no schedule is obtained.
+   jwd8202o-i  "gm2gm_main.f90", line 719: Loop unrolled 8 times.
+   jwd6146s-i  "gm2gm_main.f90", line 728: SIMD conversion cannot be applied to DO loop: the effect cannot be expected to the loop including IF construct.
+   jwd8204o-i  "gm2gm_main.f90", line 728: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 728: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 40.
+   jwd6001s-i  "gm2gm_main.f90", line 761: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 761: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 761: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 160.
+   jwd6001s-i  "gm2gm_main.f90", line 767: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 767: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 767: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 781: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 781: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 781: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 797: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 797: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 797: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 813: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 813: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 813: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 829: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 829: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 829: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 866: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 866: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 866: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 878: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 878: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 878: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 890: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 890: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 890: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 904: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 904: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 904: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 920: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 920: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 920: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 935: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 935: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 935: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 950: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 950: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 950: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 965: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 965: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 965: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 980: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 980: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 980: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 995: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 995: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 995: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1010: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1010: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1010: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1025: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1025: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1025: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1040: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1040: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1040: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1055: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1055: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1055: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1070: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1070: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1070: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1085: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1085: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1085: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1100: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1100: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1100: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+   jwd6001s-i  "gm2gm_main.f90", line 1115: SIMD conversion is applied to DO loop with DO variable 'i'.
+   jwd8204o-i  "gm2gm_main.f90", line 1115: This loop is software pipelined.
+   jwd8205o-i  "gm2gm_main.f90", line 1115: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 144.
+
+ Procedure information
+   Lines      : 1149
+   Statements : 827
+   Stack(byte): 3808
+   Prefetch num: 88
+
+ Scoping unit of program : gm2gm_main
+   Attribute and Cross reference of name
+     abs
+      |(Class and Type) : intrinsic function name, INTEGER(4)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 297  297
+     aki
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  217  1133
+      |(Reference)      : 245
+     amn
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : 
+      |(Declaration)    : 24
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  782  788  794  798  804  810  814  820  826  830  836  901  905  911  917  921  927  932  936  942  947  951  957  962  966  972  977  981  987  992  996  1002  1007  1011  1017  1022  1026  1032  1037  1041  1047  1052  1056  1062  1067  1071  1077  1082  1086  1092  1097  1101  1107  1112  1116  1122
+     amx
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : 
+      |(Declaration)    : 24
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  782  788  794  798  804  810  814  820  826  830  836  901  905  911  917  921  927  932  936  942  947  951  957  962  966  972  977  981  987  992  996  1002  1007  1011  1017  1022  1026  1032  1037  1041  1047  1052  1056  1062  1067  1071  1077  1082  1086  1092  1097  1101  1107  1112  1116  1122
+     anlslp
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  362  371  1133
+      |(Reference)      : 
+     argument
+      |(Class and Type) : variable name, CHARACTER(64,1)
+      |(Attributes)     : 
+      |(Declaration)    : 29
+      |(Definition)     : 294  295  296
+      |(Reference)      : 
+     bck
+      |(Class and Type) : variable name, CHARACTER(24,1)
+      |(Attributes)     : initialized
+      |(Declaration)    : 54
+      |(Definition)     : 304  321  1128
+      |(Reference)      : 
+     bki
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  229  1133
+      |(Reference)      : 244
+     capa
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : 
+      |(Declaration)    : 22
+      |(Definition)     : 257
+      |(Reference)      : 258
+     cdtg
+      |(Class and Type) : variable name, CHARACTER(12,1)
+      |(Attributes)     : 
+      |(Declaration)    : 8
+      |(Definition)     : 279  281
+      |(Reference)      : 283
+     cdtg8
+      |(Class and Type) : variable name, CHARACTER(8,1)
+      |(Attributes)     : 
+      |(Declaration)    : 7
+      |(Definition)     : 270
+      |(Reference)      : 273  278  279  281
+     char
+      |(Class and Type) : intrinsic function name, CHARACTER((unknown),1)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 292  293  294
+     cp
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : initialized
+      |(Declaration)    : 22  69
+      |(Definition)     : 
+      |(Reference)      : 258  500  505
+     ctau
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 9
+      |(Definition)     : 271
+      |(Reference)      : 274  284
+     dmscfg
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 295  296
+     dmscls
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 1128  1129  1130
+     dmsexit
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 300
+     dmsflagin
+      |(Class and Type) : variable name, CHARACTER(2,1)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 13  71
+      |(Definition)     : 76
+      |(Reference)      : 95  96
+     dmsflagout
+      |(Class and Type) : variable name, CHARACTER(2,1)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 13  71
+      |(Definition)     : 77
+      |(Reference)      : 98  99
+     dmsmsg
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 303
+     dmsopn
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 304  305  306
+     dmsread
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 321  343  353  360  366  441  530  590  633  668  705  752  776  792  808  824  840  848  855  862  875  887  899  915  930  945  960  975  990  1005  1020  1035  1050  1065  1080  1095  1110
+     dmsreadi
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 759
+     dmswrit
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 374  481  520  578  623  662  696  735  755  786  802  818  834  843  851  858  871  883  895  909  925  940  955  970  985  1000  1015  1030  1045  1060  1075  1090  1105  1120
+     dmswriti
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 772
+     dtgfix12
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 285
+     dtt
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : 
+      |(Declaration)    : 23
+      |(Definition)     : 464
+      |(Reference)      : 465
+     exp
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 476
+     first
+      |(Class and Type) : variable name, LOGICAL(4)
+      |(Attributes)     : 
+      |(Declaration)    : 27
+      |(Definition)     : 259  345  347  355  362  368  443  532  592  635  670  709  753  765  779  795  811  827  841  849  856  863  876  888  902  918  933  948  963  978  993  1008  1023  1038  1053  1068  1083  1098  1113
+      |(Reference)      : 
+     fld1
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  447  463  465  468  540  547  548  551  596  604  605  608  639  647  648  651  674  681  682  685  713  720  721  723  1133
+      |(Reference)      : 463  464  465  547  548  604  605  647  648  681  682  720  721
+     fld2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  468  551  608  651  685  723  1133
+      |(Reference)      : 475  500  505  505  562  615  657  691  729
+     float
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 762
+     getarg
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 270  271
+     getenv
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 85
+     ggdef1
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 61
+      |(Definition)     : 95  342  352  359  365  751  758  775  791  807  823  839  847  854  861  874  886  898  914  929
+      |(Reference)      : 153
+     ggdef2
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 62
+      |(Definition)     : 98  373  754  771  785  801  817  833  842  850  857  870  882  894  908  924  939
+      |(Reference)      : 153  319
+     gm2gm_main
+      |(Class and Type) : program name
+      |(Attributes)     : 
+      |(Declaration)    : 1
+      |(Definition)     : 
+      |(Reference)      : 1149
+     gm2gm_param
+      |(Class and Type) : namelist name
+      |(Attributes)     : 
+      |(Declaration)    : 71
+      |(Definition)     : 
+      |(Reference)      : 89  93
+     gmdef1
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 61
+      |(Definition)     : 96  440  529  589  632  667  704  944  959  974  989  1004  1019  1034  1049  1064  1079  1094  1109
+      |(Reference)      : 
+     gmdef2
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 62
+      |(Definition)     : 99  480  519  577  622  661  695  734  954  969  984  999  1014  1029  1044  1059  1074  1089  1104  1119
+      |(Reference)      : 
+     grav
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : initialized
+      |(Declaration)    : 22  68
+      |(Definition)     : 
+      |(Reference)      : 325  464  515
+     hld1
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  443  452  475  481  483  515  520  532  538  562  564  565  567  568  570  571  578  592  615  617  623  635  657  662  670  691  696  709  729  730  735  753  755  765  779  782  786  787  795  798  802  803  811  814  818  819  827  830  834  835  841  843  849  851  856  858  863  867  871  876  879  883  888  891  895  902  905  909  910  918  921  925  926  933  936  940  941  948  951  955  956  963  966  970  971  978  981  985  986  993  996  1000  1001  1008  1011  1015  1016  1023  1026  1030  1031  1038  1041  1045  1046  1053  1056  1060  1061  1068  1071  1075  1076  1083  1086  1090  1091  1098  1101  1105  1106  1113  1116  1120  1121  1133
+      |(Reference)      : 447  538  540  564  565  567  568  570  571  596  617  639  674  713  730  768  782  798  814  830  844  867  879  891  905  921  936  951  966  981  996  1011  1026  1041  1056  1071  1086  1101  1116
+     horizon_intpo
+      |(Class and Type) : variable name, LOGICAL(4)
+      |(Attributes)     : 
+      |(Declaration)    : 27
+      |(Definition)     : 260
+      |(Reference)      : 344  354  361  367  442  531  591  634  669  708  749
+     hybrid1
+      |(Class and Type) : variable name, LOGICAL(4)
+      |(Attributes)     : 
+      |(Declaration)    : 26
+      |(Definition)     : 130  133  136
+      |(Reference)      : 155  384
+     hybrid2
+      |(Class and Type) : variable name, LOGICAL(4)
+      |(Attributes)     : 
+      |(Declaration)    : 26
+      |(Definition)     : 144  147
+      |(Reference)      : 155  390
+     i
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 17
+      |(Definition)     : 324  376  397  401  408  446  454  462  474  485  499  504  514  536  546  558  595  603  613  638  646  656  673  680  690  712  719  728  761  767  781  797  813  829  866  878  890  904  920  935  950  965  980  995  1010  1025  1040  1055  1070  1085  1100  1115
+      |(Reference)      : 325  325  377  377  378  378  398  398  402  402  403  403  409  409  410  410  412  412  415  415  416  416  419  419  447  447  448  448  455  455  463  463  464  464  464  465  465  475  475  476  476  486  486  500  500  500  500  500  505  505  505  505  505  505  505  505  515  515  538  538  540  540  547  547  548  548  562  562  563  564  564  565  565  566  566  567  567  568  568  569  569  570  570  571  571  596  596  604  604  605  605  615  615  616  617  617  639  639  647  647  648  648  657  657  674  674  681  681  682  682  691  691  713  713  720  720  721  721  729  729  730  730  762  762  768  768  782  782  798  798  814  814  830  830  867  867  879  879  891  891  905  905  921  921  936  936  951  951  966  966  981  981  996  996  1011  1011  1026  1026  1041  1041  1056  1056  1071  1071  1086  1086  1101  1101  1116  1116
+     iargc
+      |(Class and Type) : external function name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 265
+     iargc
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 
+      |(Reference)      : 
+     idtg
+      |(Class and Type) : variable name, INTEGER(8)
+      |(Attributes)     : 
+      |(Declaration)    : 15
+      |(Definition)     : 283  285  751  754  758  771  775  785  791  801
+      |(Reference)      : 287  337
+     idtg_fg
+      |(Class and Type) : variable name, INTEGER(8)
+      |(Attributes)     : 
+      |(Declaration)    : 15
+      |(Definition)     : 285  807  817  823  833  839  842  847  850  854  857  861  870  874  882  886  894  898  908  914  924  929  939  944  954  959  969  974  984  989  999  1004  1014  1019  1029  1034  1044  1049  1059  1064  1074  1079  1089  1094  1104  1109  1119
+      |(Reference)      : 288  334
+     idtgx
+      |(Class and Type) : variable name, INTEGER(8)
+      |(Attributes)     : 
+      |(Declaration)    : 15
+      |(Definition)     : 334  337  342  352  359  365  373  440  480  519  529  577  589  622  632  661  667  695  704  734
+      |(Reference)      : 339
+     ierr
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 4
+      |(Definition)     : 162  178  185
+      |(Reference)      : 173  180  187
+     ifilin
+      |(Class and Type) : variable name, CHARACTER(24,1)
+      |(Attributes)     : initialized
+      |(Declaration)    : 55
+      |(Definition)     : 305  343  353  360  366  441  530  590  633  668  705  752  759  776  792  808  824  840  848  855  862  875  887  899  915  930  945  960  975  990  1005  1020  1035  1050  1065  1080  1095  1110  1129
+      |(Reference)      : 
+     ifilout
+      |(Class and Type) : variable name, CHARACTER(24,1)
+      |(Attributes)     : initialized
+      |(Declaration)    : 56
+      |(Definition)     : 306  374  481  520  578  623  662  696  735  755  772  786  802  818  834  843  851  858  871  883  895  909  925  940  955  970  985  1000  1015  1030  1045  1060  1075  1090  1105  1120  1130
+      |(Reference)      : 
+     ihld
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 46
+      |(Definition)     : 178  768  772  1133
+      |(Reference)      : 
+     im
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 4  71
+      |(Definition)     : 78  343  345  353  355  360  362  366  368  441  443  530  532  590  592  633  635  668  670  705  709  752  753  759  765  776  777  779  792  793  795  808  809  811  824  825  827  840  841  848  849  855  856  862  863  875  876  887  888  899  900  902  915  916  918  930  931  933  945  946  948  960  961  963  975  976  978  990  991  993  1005  1006  1008  1020  1021  1023  1035  1036  1038  1050  1051  1053  1065  1066  1068  1080  1081  1083  1095  1096  1098  1110  1111  1113
+      |(Reference)      : 158  162  178  260  311  761
+     imn
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 21
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  788  794  804  810  820  826  836  901  911  917  927  932  942  947  957  962  972  977  987  992  1002  1007  1017  1022  1032  1037  1047  1052  1062  1067  1077  1082  1092  1097  1107  1112  1122
+     imx
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 17
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  788  794  804  810  820  826  836  901  911  917  927  932  942  947  957  962  972  977  987  992  1002  1007  1017  1022  1032  1037  1047  1052  1062  1067  1077  1082  1092  1097  1107  1112  1122
+     int
+      |(Class and Type) : intrinsic function name, INTEGER(4)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 768
+     irecfe
+      |(Class and Type) : variable name, CHARACTER(6,1)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 47
+      |(Definition)     : 185  192  352  1133
+      |(Reference)      : 
+     istat
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 297  303  304  305  306  321  343  353  360  366  374  441  481  520  530  578  590  623  633  662  668  696  705  735  752  755  759  772  776  786  792  802  808  818  824  834  840  843  848  851  855  858  862  871  875  883  887  895  899  909  915  925  930  940  945  955  960  970  975  985  990  1000  1005  1015  1020  1030  1035  1045  1050  1060  1065  1075  1080  1090  1095  1105  1110  1120  1128  1129  1130
+      |(Reference)      : 298  706
+     istat_r
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 295
+      |(Reference)      : 297
+     istat_w
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 296
+      |(Reference)      : 297
+     itaup
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 284  807  817  823  833  839  842  847  850  854  857  861  870  874  882  886  894  898  908  914  924  929  939  944  954  959  969  974  984  989  999  1004  1014  1019  1029  1034  1044  1049  1059  1064  1074  1079  1089  1094  1104  1109  1119
+      |(Reference)      : 285  286  333
+     itaux
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 333  336  342  352  359  365  373  440  480  519  529  577  589  622  632  661  667  695  704  734  747  751  754  758  771  775  785  791  801
+      |(Reference)      : 
+     iwkr
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 46
+      |(Definition)     : 178  759  1133
+      |(Reference)      : 762
+     iwnd
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 435  443  525  532  585  592  628  635  670  709
+      |(Reference)      : 
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 17
+      |(Definition)     : 323  382  407  445  453  461  473  484  494  513  535  545  557  594  602  612  637  645  655  672  679  689  711  718  727  760  766  780  796  812  828  865  877  889  903  919  934  949  964  979  994  1009  1024  1039  1054  1069  1084  1099  1114
+      |(Reference)      : 325  325  385  385  387  387  391  391  398  398  402  402  403  403  409  409  410  410  412  412  415  415  416  416  419  419  447  447  448  448  455  455  463  463  464  464  464  465  465  468  468  468  468  475  475  476  476  486  486  497  500  500  500  505  505  505  505  515  515  538  538  540  540  547  547  548  548  551  551  551  551  562  562  563  564  564  565  565  566  566  567  567  568  568  569  569  570  570  571  571  596  596  604  604  605  605  608  608  608  608  615  615  616  617  617  639  639  647  647  648  648  651  651  651  651  657  657  674  674  681  681  682  682  685  685  685  685  691  691  713  713  720  720  721  721  723  723  723  723  729  729  730  730  762  762  768  768  782  782  798  798  814  814  830  830  867  867  879  879  891  891  905  905  921  921  936  936  951  951  966  966  981  981  996  996  1011  1011  1026  1026  1041  1041  1056  1056  1071  1071  1086  1086  1101  1101  1116  1116
+     jm
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 4
+      |(Definition)     : 158  343  345  353  355  360  362  366  368  441  443  530  532  590  592  633  635  668  670  705  709  752  753  759  765  776  777  779  792  793  795  808  809  811  824  825  827  840  841  848  849  855  856  862  863  875  876  887  888  899  900  902  915  916  918  930  931  933  945  946  948  960  961  963  975  976  978  990  991  993  1005  1006  1008  1020  1021  1023  1035  1036  1038  1050  1051  1053  1065  1066  1068  1080  1081  1083  1095  1096  1098  1110  1111  1113
+      |(Reference)      : 162  178  260  311  760
+     jmn
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 21
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  788  794  804  810  820  826  836  901  911  917  927  932  942  947  957  962  972  977  987  992  1002  1007  1017  1022  1032  1037  1047  1052  1062  1067  1077  1082  1092  1097  1107  1112  1122
+     jmx
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 17
+      |(Definition)     : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+      |(Reference)      : 778  788  794  804  810  820  826  836  901  911  917  927  932  942  947  957  962  972  977  987  992  1002  1007  1017  1022  1032  1037  1047  1052  1062  1067  1077  1082  1092  1097  1107  1112  1122
+     k
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 17
+      |(Definition)     : 351  428  437  472  503  512  526  554  586  611  629  654  665  688  702  726
+      |(Reference)      : 352  355  429  439  447  448  455  475  476  479  486  505  505  505  505  505  505  505  505  515  518  528  540  562  563  566  566  569  569  576  588  596  615  616  621  631  639  657  660  666  674  691  694  703  713  729  733
+     km
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 4  71
+      |(Definition)     : 79  159  387
+      |(Reference)      : 128  131  134  138  154  159  162  162  162  162  162  162  162  162  247  249  252  397  409  410  410  412  428  432  437  464  464  464  465  465  468  526  548  548  551  586  605  605  608  629  648  648  651  665  682  682  685  702  721  721  723
+     ksgeo
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : initialized
+      |(Declaration)    : 18  65
+      |(Definition)     : 
+      |(Reference)      : 314  317
+     lenrec1
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 20
+      |(Definition)     : 311  343  353  360  366  441  530  590  633  668  705  752  759  776  792  808  824  840  848  855  862  875  887  899  915  930  945  960  975  990  1005  1020  1035  1050  1065  1080  1095  1110
+      |(Reference)      : 
+     lenrec2
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 20
+      |(Definition)     : 312  321  374  481  520  578  623  662  696  735  755  772  786  802  818  834  843  851  858  871  883  895  909  925  940  955  970  985  1000  1015  1030  1045  1060  1075  1090  1105  1120
+      |(Reference)      : 
+     lev
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 4  71
+      |(Definition)     : 81  385  391  468  497  551  608  651  685  723
+      |(Reference)      : 142  145  149  154  162  162  162  162  162  162  162  162  162  162  162  401  409  412  472  500  500  500  500  503  512  554  611  654  688  726
+     lmax
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 4  71
+      |(Definition)     : 82  371
+      |(Reference)      : 162  162  185  351
+     log
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 398  403  410  412  416  419
+     lrec
+      |(Class and Type) : variable name, CHARACTER(26,1)
+      |(Attributes)     : 
+      |(Declaration)    : 10
+      |(Definition)     : 319  321  342  343  352  353  359  360  365  366  373  374  440  441  480  481  519  520  529  530  577  578  589  590  622  623  632  633  661  662  667  668  695  696  704  705  734  735  751  752  754  755  758  759  771  772  775  776  785  786  791  792  801  802  807  808  817  818  823  824  833  834  839  840  842  843  847  848  850  851  854  855  857  858  861  862  870  871  874  875  882  883  886  887  894  895  898  899  908  909  914  915  924  925  929  930  939  940  944  945  954  955  959  960  969  970  974  975  984  985  989  990  999  1000  1004  1005  1014  1015  1019  1020  1029  1030  1034  1035  1044  1045  1049  1050  1059  1060  1064  1065  1074  1075  1079  1080  1089  1090  1094  1095  1104  1105  1109  1110  1119  1120
+      |(Reference)      : 320
+     max
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 538  562  615  782  798  814  830  867  879  891  905  921  936  951  966  981  996  1011  1026  1041  1056  1071  1086  1101  1116
+     min
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 768  782  798  814  830  867  879  891  905  921  936  951  966  981  996  1011  1026  1041  1056  1071  1086  1101  1116
+     my
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 4
+      |(Definition)     : 160  321  345  355  362  368  371  374  443  481  520  532  578  592  623  635  662  670  696  709  735  753  755  765  772  779  786  787  795  802  803  811  818  819  827  834  835  841  843  849  851  856  858  863  871  876  883  888  895  902  909  910  918  925  926  933  940  941  948  955  956  963  970  971  978  985  986  993  1000  1001  1008  1015  1016  1023  1030  1031  1038  1045  1046  1053  1060  1061  1068  1075  1076  1083  1090  1091  1098  1105  1106  1113  1120  1121
+      |(Reference)      : 162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  178  260  312  323  376  382  407  436  445  453  461  473  484  494  513  535  545  557  594  602  612  637  645  655  672  679  689  711  718  727  766  780  796  812  828  865  877  889  903  919  934  949  964  979  994  1009  1024  1039  1054  1069  1084  1099  1114
+     namlsts
+      |(Class and Type) : variable name, CHARACTER(80,1)
+      |(Attributes)     : 
+      |(Declaration)    : 6
+      |(Definition)     : 85
+      |(Reference)      : 88
+     nargc
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 18
+      |(Definition)     : 265
+      |(Reference)      : 266
+     nt
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 330
+      |(Reference)      : 332  335  583  699
+     nx
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : namelist-group-object
+      |(Declaration)    : 4  71
+      |(Definition)     : 80  321  345  355  362  368  371  374  385  387  391  443  468  481  497  520  532  551  578  592  608  623  635  651  662  670  685  696  709  723  735  753  755  765  772  779  786  787  795  802  803  811  818  819  827  834  835  841  843  849  851  856  858  863  871  876  883  888  895  902  909  910  918  925  926  933  940  941  948  955  956  963  970  971  978  985  986  993  1000  1001  1008  1015  1016  1023  1030  1031  1038  1045  1046  1053  1060  1061  1068  1075  1076  1083  1090  1091  1098  1105  1106  1113  1120  1121
+      |(Reference)      : 160  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  162  178  260  312  324  376  381  397  401  408  436  446  454  462  474  485  499  504  514  536  546  558  595  603  613  638  646  656  673  680  690  712  719  728  767  781  797  813  829  866  878  890  904  920  935  950  965  980  995  1010  1025  1040  1055  1070  1085  1100  1115
+     nxj
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 381  385  391  497
+      |(Reference)      : 
+     nxmy
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 436  452  483
+      |(Reference)      : 
+     phi
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  500  505  1133
+      |(Reference)      : 505  515
+     phi2pt
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 371
+     pk
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  385  387  1133
+      |(Reference)      : 
+     pk2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  385  387  1133
+      |(Reference)      : 
+     pk2x
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  391  497  1133
+      |(Reference)      : 500  505  505
+     pkx
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  391  497  1133
+      |(Reference)      : 500  505  505
+     plt
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  385  387  1133
+      |(Reference)      : 398  410  416  448
+     plt2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  391  403  468  551  608  651  685  723  1133
+      |(Reference)      : 402  403  409  412  415  419  476
+     plt2p
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  402  1133
+      |(Reference)      : 563  566  566  569  569  616
+     presp
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  398  410  412  416  419  468  551  608  651  685  723  1133
+      |(Reference)      : 409  415  464  464
+     prexp
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 387
+     prexp_hybrid_cwb
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 385  391  497
+     pt
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  345  377  385  387  1133
+      |(Reference)      : 377
+     pt2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  371  374  378  391  497  1133
+      |(Reference)      : 378
+     ptop1
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : initialized
+      |(Declaration)    : 22  65
+      |(Definition)     : 129  132  135  385  387
+      |(Reference)      : 377
+     ptop2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : initialized
+      |(Declaration)    : 22  65
+      |(Definition)     : 143  146  391  497
+      |(Reference)      : 378
+     puvphi
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  196  371  1133
+      |(Reference)      : 
+     qsat
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  455  1133
+      |(Reference)      : 
+     qsat2
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  486  1133
+      |(Reference)      : 
+     qsatq
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 452  483
+     rgas
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : 
+      |(Declaration)    : 22
+      |(Definition)     : 258
+      |(Reference)      : 464
+     sgeo
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  321  325  371  1133
+      |(Reference)      : 325  500
+     sig
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  248  250  387  1133
+      |(Reference)      : 
+     sig30
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  209  1133
+      |(Reference)      : 250
+     sig40
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  200  1133
+      |(Reference)      : 248
+     sigma
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  244  245  385  391  497  1133
+      |(Reference)      : 
+     syslbl
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 342  352  359  365  373  440  480  519  529  577  589  622  632  661  667  695  704  734  751  754  758  771  775  785  791  801  807  817  823  833  839  842  847  850  854  857  861  870  874  882  886  894  898  908  914  924  929  939  944  954  959  969  974  984  989  999  1004  1014  1019  1029  1034  1044  1049  1059  1064  1074  1079  1089  1094  1104  1109  1119
+     t1000
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  368  371  1133
+      |(Reference)      : 
+     tens
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  429  431  432  468  551  608  651  685  723  1133
+      |(Reference)      : 
+     topohgt
+      |(Class and Type) : variable name, CHARACTER(4,1)
+      |(Attributes)     : 
+      |(Declaration)    : 12
+      |(Definition)     : 315  317
+      |(Reference)      : 319
+     trim
+      |(Class and Type) : intrinsic function name, CHARACTER((unknown),1)
+      |(Attributes)     : PURE
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 88  95  96  98  99
+     typ
+      |(Class and Type) : variable name, CHARACTER(6,1)
+      |(Attributes)     : 
+      |(Declaration)    : 11
+      |(Definition)     : 439  440  479  480  518  519  528  529  576  577  588  589  621  622  631  632  660  661  666  667  694  695  703  704  733  734
+      |(Reference)      : 
+     type_r
+      |(Class and Type) : variable name, CHARACTER(64,1)
+      |(Attributes)     : 
+      |(Declaration)    : 29
+      |(Definition)     : 292  295
+      |(Reference)      : 
+     type_w
+      |(Class and Type) : variable name, CHARACTER(64,1)
+      |(Attributes)     : 
+      |(Declaration)    : 29
+      |(Definition)     : 293  296
+      |(Reference)      : 
+     unit_file
+      |(Class and Type) : named constant, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 5
+      |(Definition)     : 
+      |(Reference)      : 88  89  90
+     vmnmx
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 777  787  793  803  809  819  825  835  900  910  916  926  931  941  946  956  961  971  976  986  991  1001  1006  1016  1021  1031  1036  1046  1051  1061  1066  1076  1081  1091  1096  1106  1111  1121
+     vterpj
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 468  551  608  651  685  723
+     wkp
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  448  452  476  483  1133
+      |(Reference)      : 
+     wkpz
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  497  1133
+      |(Reference)      : 
+     wkq
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  452  483  1133
+      |(Reference)      : 455  486
+     wkr
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  343  345  353  355  360  362  366  368  441  443  530  532  590  592  633  635  668  670  705  709  752  753  762  765  776  777  779  792  793  795  808  809  811  824  825  827  840  841  848  849  855  856  862  863  875  876  887  888  899  900  902  915  916  918  930  931  933  945  946  948  960  961  963  975  976  978  990  991  993  1005  1006  1008  1020  1021  1023  1035  1036  1038  1050  1051  1053  1065  1066  1068  1080  1081  1083  1095  1096  1098  1110  1111  1113  1133
+      |(Reference)      : 
+     xr
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  345  355  362  368  443  532  592  635  670  709  753  765  779  795  811  827  841  849  856  863  876  888  902  918  933  948  963  978  993  1008  1023  1038  1053  1068  1083  1098  1113  1133
+      |(Reference)      : 
+     xyintpo
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 345  355  362  368  443  532  592  635  670  709  753  765  779  795  811  827  841  849  856  863  876  888  902  918  933  948  963  978  993  1008  1023  1038  1053  1068  1083  1098  1113
+     yr
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  345  355  362  368  443  532  592  635  670  709  753  765  779  795  811  827  841  849  856  863  876  888  902  918  933  948  963  978  993  1008  1023  1038  1053  1068  1083  1098  1113  1133
+      |(Reference)      : 
+     zz
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : ALLOCATABLE, DIMENSION, SAVE
+      |(Declaration)    : 35
+      |(Definition)     : 162  355  371  1133
+      |(Reference)      : 
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+       1090  execution     (Definition) 1124
+       1371  execution     (Definition) 738  
+                           (Reference)  706
+
+ External subroutine subprogram "vmnmx"
+  (inc)(line-no.)(nest)(optimize)
+            1150                     
+            1151                     
+            1152                           subroutine vmnmx(im,jm,a,amn,imn,jmn,amx,imx,jmx)
+            1153                           implicit none
+            1154                     !
+            1155                           integer :: imn, jmn, im, jm, i, j, imx, jmx
+            1156                           real ::  a(im,jm), amx, amn
+            1157                     !
+            1158                           imn = 1
+            1159                           jmn = 1
+            1160                           imx = 1
+            1161                           jmx = 1
+            1162                           amn = a(1,1)
+            1163                           amx = a(1,1)
+            1164                     !
+            1165     1                     do j = 1, jm
+            1166     2       6s            do i = 1, im
+            1167     3       6s             if( a(i,j) .lt. amn ) then
+            1168     3       6s              imn = i
+            1169     3       6s              jmn = j
+            1170     3       6s              amn = a(i,j)
+            1171     3       6v             end if
+            1172     3       6s             if( a(i,j) .gt. amx ) then
+            1173     3       6s              imx = i
+            1174     3       6s              jmx = j
+            1175     3       6s              amx = a(i,j)
+            1176     3       6v             end if
+            1177     2       6v            end do
+            1178     1                     end do
+            1179                     !
+            1180                           return
+            1181                           end subroutine vmnmx
+
+ Diagnostic messages: program name(vmnmx)
+   jwd6146s-i  "gm2gm_main.f90", line 1166: SIMD conversion cannot be applied to DO loop: the effect cannot be expected to the loop including IF construct.
+   jwd8670o-i  "gm2gm_main.f90", line 1166: This loop is not software pipelined because the loop contains a branch instruction which is not for loop iteration.
+   jwd8202o-i  "gm2gm_main.f90", line 1166: Loop unrolled 6 times.
+   jwd6202s-i  "gm2gm_main.f90", line 1167: SIMD conversion cannot be applied to DO loop: data dependency of variable 'amn' may cause different results from serial execution for loop.
+   jwd6202s-i  "gm2gm_main.f90", line 1172: SIMD conversion cannot be applied to DO loop: data dependency of variable 'amx' may cause different results from serial execution for loop.
+
+ Procedure information
+   Lines      : 32
+   Statements : 26
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : vmnmx
+   Attribute and Cross reference of name
+     a
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 1152  1156
+      |(Definition)     : 
+      |(Reference)      : 1162  1163  1167  1170  1172  1175
+     amn
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1156
+      |(Definition)     : 1162  1170
+      |(Reference)      : 1167
+     amx
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1156
+      |(Definition)     : 1163  1175
+      |(Reference)      : 1172
+     i
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 1155
+      |(Definition)     : 1166
+      |(Reference)      : 1167  1168  1170  1172  1173  1175
+     im
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 
+      |(Reference)      : 1156  1166
+     imn
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 1158  1168
+      |(Reference)      : 
+     imx
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 1160  1173
+      |(Reference)      : 
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 1155
+      |(Definition)     : 1165
+      |(Reference)      : 1167  1169  1170  1172  1174  1175
+     jm
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 
+      |(Reference)      : 1156  1165
+     jmn
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 1159  1169
+      |(Reference)      : 
+     jmx
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 1152  1155
+      |(Definition)     : 1161  1174
+      |(Reference)      : 
+     vmnmx
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 1152
+      |(Reference)      : 1181
+
+ Total information
+   Procedures       : 2
+   Total lines      : 1181
+   Total statements : 853
+   Total stack(byte): 3808
+   Total prefetch num: 88
+

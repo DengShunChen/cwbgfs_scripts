@@ -1,0 +1,83 @@
+ &SETUP
+   miter=2,niter(1)=100,niter(2)=150,
+   niter_no_qc(1)=50,niter_no_qc(2)=0,
+   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
+   gencode=82,qoption=2,
+   factqmin=0.005,factqmax=0.005,deltim=180,
+   ndat=14,iguess=-1,
+   oneobtest=.false.,retrieval=.false.,l_foto=.false.,
+   use_pbl=.false.,use_compress=.false.,nsig_ext=10,gpstop=30.,
+   use_gfs_nemsio=.false.,
+ /
+ &GRIDOPTS
+   JCAP=319,JCAP_B=319,NLAT=482,NLON=960,nsig=40,hybrid=.false.,
+   regional=.false.,nlayers(59)=3,nlayers(60)=6,
+ /
+ &BKGERR
+   vs=0.7,
+   hzscl=1.7,0.8,0.5,
+   hswgt=0.45,0.3,0.25,
+   bw=0.0,norsp=4,
+   bkgv_flowdep=.false.,bkgv_rewgtfct=1.5,
+ /
+ &ANBKGERR
+   anisotropic=.false.,
+ /
+ &JCOPTS
+   ljcdfi=.false.,alphajc=0.0,ljcpdry=.true.,bamp_jcpdry=5.0e7,
+ /
+ &STRONGOPTS
+   jcstrong=.true.,nstrong=1,nvmodes_keep=3,period_max=6.,period_width=1.5,
+   jcstrong_option=2,baldiag_full=.true.,baldiag_inc=.true.,
+ /
+ &OBSQC
+   dfact=0.75,dfact1=3.0,noiqc=.true.,oberrflg=.false.,c_varqc=0.02,
+   use_poq7=.true.,qc_noirjaco3_pole=.true.,
+ /
+ &OBS_INPUT
+   dmesh(1)=145.0,dmesh(2)=150.0,time_window_max=3.0,
+  dfile(01)='cwbps.dat',  dtype(01)='cwbps',      dplat(01)=' ',         dsis(01)='cwbps',                  dval(01)=1.0,  dthin(01)=0, dsfcalc(01)=0,
+  dfile(02)='cwbt.dat',  dtype(02)='cwbt',      dplat(02)=' ',         dsis(02)='cwbt',                  dval(02)=1.0,  dthin(02)=0, dsfcalc(02)=0,
+  dfile(03)='cwbq.dat',  dtype(03)='cwbq',      dplat(03)=' ',         dsis(03)='cwbq',                  dval(03)=1.0,  dthin(03)=0, dsfcalc(03)=0,
+  dfile(04)='cwbw.dat',  dtype(04)='cwbuv',      dplat(04)=' ',         dsis(04)='cwbuv',                  dval(04)=1.0,  dthin(04)=0, dsfcalc(04)=0,
+   dfile(05)='gpsrobufr', dtype(05)='gps_ref',   dplat(05)=' ',       dsis(05)='gps',                dval(05)=0.0, dthin(05)=0, dsfcalc(05)=0,
+   dfile(06)='amsuabufr', dtype(06)='amsua',     dplat(06)='n15',     dsis(06)='amsua_n15',          dval(06)=10.0, dthin(06)=1, dsfcalc(06)=1,
+   dfile(07)='amsuabufr', dtype(07)='amsua',     dplat(07)='n18',     dsis(07)='amsua_n18',          dval(07)=10.0,dthin(07)=2, dsfcalc(07)=1,
+   dfile(08)='amsuabufr', dtype(08)='amsua',     dplat(08)='metop-a', dsis(08)='amsua_metop-a',      dval(08)=10.0,dthin(08)=2, dsfcalc(08)=1,
+   dfile(09)='airsbufr',  dtype(09)='amsua',     dplat(09)='aqua',    dsis(09)='amsua_aqua',         dval(09)=5.0, dthin(09)=2, dsfcalc(09)=1,
+  dfile(10)='iasibufr',  dtype(10)='iasi',      dplat(10)='metop-a',   dsis(10)='iasi616_metop-a',     dval(10)=20.0, dthin(10)=1, dsfcalc(10)=1,
+   dfile(11)='bgst.dat',  dtype(11)='bgst',      dplat(11)=' ',       dsis(11)='t',                  dval(11)=0.0, dthin(11)=0, dsfcalc(11)=0,
+   dfile(12)='bgsw.dat',  dtype(12)='bgsuv',     dplat(12)=' ',       dsis(12)='uv',                 dval(12)=0.0, dthin(12)=0, dsfcalc(12)=0,
+  dfile(13)='bgsq.dat', dtype(13)='bgsq',       dplat(13)=' ',       dsis(13)='q',                 dval(13)=1.0,  dthin(13)=0,  dsfcalc(13)=0,
+  dfile(14)='bgsps.dat', dtype(14)='bgsps',       dplat(14)=' ',     dsis(14)='ps',                dval(14)=0.0,  dthin(14)=0,  dsfcalc(14)=0,
+ /
+  &SUPEROB_RADAR
+ /
+ &LAG_DATA
+ /
+ &HYBRID_ENSEMBLE
+   l_hyb_ens=.false.,
+   n_ens=40,
+   beta1_inv=0.5,
+   uv_hyb_ens=.true.,
+   s_ens_h=800,
+   s_ens_v=-0.8,
+   generate_ens=.false.,
+   aniso_a_en=.false.,
+   nlon_ens=540,
+   nlat_ens=272,
+   jcap_ens=179,
+   jcap_ens_test=179,
+   readin_localization=.false.,
+   oz_univ_static=.true.,
+ /
+ &RAPIDREFRESH_CLDSURF
+   dfi_radar_latent_heat_time_period=30.0,
+ /
+ &CHEM
+ /
+ &SINGLEOB_TEST
+   maginnov=1.0,magoberr=0.8,oneob_type='t',
+   oblat=23.5,oblon=120.0,obpres=850.,obdattim=2012121500,
+   obhourset=0.,
+ /

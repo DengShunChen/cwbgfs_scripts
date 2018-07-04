@@ -1,0 +1,8 @@
+ &filst
+ ifilin='RELOCATE'
+ ifilout='BGSOUT'
+ bckfile='BCKOPS'
+ namlstsbogus='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/namlstsbogus'
+ crdate='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/crdate'
+ ocards='/nwpr/gfs/a398/data/AAA/t512/exp/noah/gfs/ocards'
+ &end

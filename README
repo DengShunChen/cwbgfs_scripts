@@ -1,0 +1,109 @@
+
+===================================================================
+ GFS_ScriptsV1.0.4  updates
+===================================================================
+1. bug-fix and add reading NA10 SST capability in global_getdata.ksh  
+2. fix the problem of missing namelist for relocation module
+===================================================================
+ GFS_ScriptsV1.0.3  updates
+===================================================================
+1. bug-fix in global_getdata.ksh
+===================================================================
+ GFS_ScriptsV1.0.2  updates
+===================================================================
+1.  Change the location of ncepbufr data on hsmsvr(silo)
+2.  Check if after 2017-07-15, sice NCEP change its bufr prefix to gdas
+===================================================================
+ GFS_ScriptsV1.0.1  updates
+===================================================================
+1.  Automaticly create ensemble forecast model working space(gfs_###)
+2.  Add another ncep ozone tar file name, since AMDP change the tarball file name 
+===================================================================
+ GFS_ScriptsV1.0.0  updates
+===================================================================
+1.  Automaticly prepare new satellite bias correction files, 
+    users NO need to prepare by your own.
+2.  New version of creating 0000.config file in /crtexp/
+3.  Add comment and instruction for /crtexp/CREAT_GFSEXP.ksh
+4.  Add global_analysis.ksh, which is the core script for GSI
+5.  Add global_fcst.ksh, which is the core script for GFS model 
+6.  Add global_diag.ksh, which is the core script for diagonstic tools
+7.  Add global_enkf.ksh, which is the core script for ENKF
+8.  Add global_fguess.ksh, which is the core script for dms2sig
+9.  Add global_getdata.ksh, which is the core script for prepare CWB data
+10. Add global_gsiparm.ksh, which is the core scripts for creating GSI namelist 
+11. New structure of sumiting shell script 0100_gdas.ksh
+12. New version of SIGIO. 
+13. New version of ncep2dms, using sigio lib to read header and data
+14. Moving namlist into scripts of 0b00_Ggfs.ksh
+15. New structure of 0500_Gfguess.ksh in order to add capability of 
+    using time lagging members.
+16. New structure of 0600_GENSfguess.ksh in order to add capability of
+    using time lagging members.
+17. Add testing mode for new SST, sea ice fraction, and snow depth
+18. Modify gtncepoz(/nwpr/gfs/xb80/data/exp/GFS_Scripts_Maintain/src/fg/ncepoz/),
+    instead of using operational one
+19. Modify ncep2dms(/nwpr/gfs/xb80/data/exp/GFS_Scripts_Maintain/src/postproc/),
+    instead of using operational one
+20. Modify fguess_gsi(/nwpr/gfs/xb80/data/exp/GFS_Scripts_Maintain/src/fg/sigfg_gsi/),
+    instead of using operational one
+21. Modify sfcges_gsi(/nwpr/gfs/xb80/data/exp/GFS_Scripts_Maintain/src/fg/sfcfg_gsi/),
+    instead of using operational one
+22. Modify GSI  (/nwpr/gfs/xb80/data/exp/EXP-4denv-sdbeta/exe/global_gsi_fx100)
+23. modify EnKF (/nwpr/gfs/xb80/data/exp/EXP-4denv-sdbeta/exe/global_enkf_fx100)
+===================================================================
+ Contains : 
+===================================================================
+  bin/          : executable  
+  crtexp/       : prepare experiments
+  dat/          : prefixed files 
+  scripts/      : scripts
+  util/         : tools 
+
+===================================================================
+ Usage : 
+===================================================================
+  a. get into create utiliy directory
+      $> cd crtexp/
+  b. modify CREAT_GFSEXP.ksh, you must change the variabel list below: 
+      expname           : experiment name
+      dtg_first         : the start date and time
+      USER              : HPC user id 
+      SILOUSER          : hsmsvr user id 
+      DMSDBPATH         : user's dms data base localtion
+      REMWRK            : user's working directory, should be /data, /data1 or /data2
+      MDIR              : GFS_Scripts location, which contains /dat /bin /scripts /crtexp /util
+  c. run CREAT_GFSEXP.ksh
+      $> ./CREAT_GFSEXP.ksh
+  d. get into experiment directory
+      $> cd .. ; cd exp_${expname}/bin
+  e. modify 0100_gdas.input.${expname}, change end of date as you want.
+  f. run gfs 
+      $> nohup 0100_gdas.ksh 0100_gdas.input.${expname} &
+
+===================================================================
+1. preapre new satellite bias correction
+===================================================================
+  a. download historical tarball from silo into dtg_save/
+    $> scp dm08:/op/bak/archive/nwp/dgs_t511/p_diagall.2017090418_T511.tar.gz dtg_save/
+  b. untar the tarball which you downloaded.
+    $> tar -zxvf p_diagall.2017090418_T511.tar.gz
+  c. copy new bias files generator into dtg_save/
+    $> cp util/generate_new_biasfiles.ksh dtg_save/
+    $> cp util/write_biascr_option.x dtg_save/
+  d. convert old bias files to new bias files
+    $> cd dtg_save/
+    $> ./generate_new_biasfiles.ksh 17090418
+
+===================================================================
+2. prepare radstat satellite diagnostic file
+===================================================================
+  a. download historical tarball from silo into dtg_save/
+    $> scp dm08:/op/bak/archive/nwp/dgs_t511/p_radstat.2017090418_T511.tar.gz dtg_save/
+  b. unzip the tarball which you downloaded.
+    $> cd dtg_save/
+    $> gunzip p_radstat.2017090418_T511.tar.gz
+
+===================================================================
+
+

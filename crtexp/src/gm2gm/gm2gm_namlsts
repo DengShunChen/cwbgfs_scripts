@@ -1,0 +1,12 @@
+&gm2gm_param
+dmsflagin='GG',
+im=960,
+km=40,
+dmsflagout='GJ',
+nx=2560,
+lev=60,
+lmax=16,
+/
+
+lmax=16 no need to change
+

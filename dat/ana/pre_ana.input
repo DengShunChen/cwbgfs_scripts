@@ -1,0 +1,15 @@
+&pre_ana
+  nsigcwb=60,
+  jcapcwb=511,
+  imcwb=1536,
+  jmcwb=768,
+  jcapncep=382,
+  nsigncep=64,
+  tau=6.,
+  flag='GH',
+  idmsfn='MASOPS',
+  bckdmsfn='BCKOPS',
+  fn_sigi='sigicwb.dat',
+  idvc=2,
+  ptop=0.1,
+/

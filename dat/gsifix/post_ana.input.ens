@@ -1,0 +1,8 @@
+&post_ana
+  nsigcwb=60,
+  jcapcwb=319,
+  imcwb=960,
+  jmcwb=480,
+  odmsfn='MASOPS',
+  flag='GG',
+/

@@ -1,0 +1,10 @@
+#!/bin/ksh
+
+set -x 
+
+dtg=15121500
+mm=`echo ${dtg} | cut -c3-4`
+
+Mor0='0'
+
+ssh datamv08 -n /package/dms/dms.v4/bin/rdmscpy -l34 "-k??????0006GE${Mor0}G20${dtg}*" MASOPS${dtg}GE${Mor0}GP-002@ENKF-${mm}@archive@hsmsvr1a MASOPSop_mem002@h3dtest

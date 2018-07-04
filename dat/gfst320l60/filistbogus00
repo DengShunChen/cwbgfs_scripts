@@ -1,0 +1,8 @@
+ &filst
+ ifilin='RELOCATE',
+ ifilout='BGSOUT',
+ bckfile='BCKOPS',
+ namlstsbogus='/nwpr/gfs/a398/data/t320l60/pp/p67airsq_t320l60/namlstsbogus',
+ crdate='/nwpr/gfs/a398/data/t320l60/pp/p67airsq_t320l60/crdate',
+ ocards='/nwpr/gfs/a398/data/t320l60/gfst320l60/ocards',
+ &end

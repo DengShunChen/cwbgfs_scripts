@@ -1,0 +1,88 @@
+ &SETUP
+   miter=2,niter(1)=100,niter(2)=150,
+   niter_no_qc(1)=50,niter_no_qc(2)=0,
+   write_diag(1)=.true.,write_diag(2)=.false.,write_diag(3)=.true.,
+   gencode=82,qoption=2,
+   factqmin=0.000,factqmax=0.000,deltim=180,
+   ndat=19,iguess=-1,
+   oneobtest=.false.,retrieval=.false.,l_foto=.false.,
+   use_pbl=.false.,use_compress=.false.,nsig_ext=10,gpstop=30.,
+   use_gfs_nemsio=.false.,
+ /
+ &GRIDOPTS
+   JCAP=511,JCAP_B=511,NLAT=770,NLON=1536,nsig=60,hybrid=.true.,
+   regional=.false.,nlayers(59)=3,nlayers(60)=6,
+ /
+ &BKGERR
+   vs=0.7,
+   hzscl=1.7,0.8,0.5,
+   hswgt=0.45,0.3,0.25,
+   bw=0.0,norsp=4,
+   bkgv_flowdep=.false.,bkgv_rewgtfct=1.5,
+ /
+ &ANBKGERR
+   anisotropic=.false.,
+ /
+ &JCOPTS
+   ljcdfi=.false.,alphajc=0.0,ljcpdry=.true.,bamp_jcpdry=5.0e7,
+ /
+ &STRONGOPTS
+   jcstrong=.true.,nstrong=1,nvmodes_keep=3,period_max=6.,period_width=1.5,
+   jcstrong_option=2,baldiag_full=.true.,baldiag_inc=.true.,
+ /
+ &OBSQC
+   dfact=0.75,dfact1=3.0,noiqc=.true.,oberrflg=.false.,c_varqc=0.02,
+   use_poq7=.true.,qc_noirjaco3_pole=.true.,
+ /
+ &OBS_INPUT
+   dmesh(1)=145.0,dmesh(2)=150.0,time_window_max=3.0,
+   dfile(01)='prepbufr',  dtype(01)='ps',        dplat(01)=' ',       dsis(01)='ps',                 dval(01)=0.0, dthin(01)=0, dsfcalc(01)=0,
+   dfile(02)='prepbufr'   dtype(02)='t',         dplat(02)=' ',       dsis(02)='t',                  dval(02)=0.0, dthin(02)=0, dsfcalc(02)=0,
+   dfile(03)='prepbufr',  dtype(03)='q',         dplat(03)=' ',       dsis(03)='q',                  dval(03)=0.0, dthin(03)=0, dsfcalc(03)=0,
+   dfile(04)='prepbufr',  dtype(04)='uv',        dplat(04)=' ',       dsis(04)='uv',                 dval(04)=0.0, dthin(04)=0, dsfcalc(04)=0,
+   dfile(05)='prepbufr',  dtype(05)='spd',       dplat(05)=' ',       dsis(05)='spd',                dval(05)=0.0, dthin(05)=0, dsfcalc(05)=0,
+   dfile(06)='cwbw.dat',  dtype(06)='cwbuv',     dplat(06)=' ',       dsis(06)='cwbuv',              dval(06)=0.0, dthin(06)=0, dsfcalc(06)=0,
+   dfile(07)='cwbt.dat',  dtype(07)='cwbt',      dplat(07)=' ',       dsis(07)='cwbt',               dval(07)=0.0, dthin(07)=0, dsfcalc(07)=0,
+   dfile(08)='gpsrobufr', dtype(08)='gps_ref',   dplat(08)=' ',       dsis(08)='gps',                dval(08)=0.0, dthin(08)=0, dsfcalc(08)=0,
+   dfile(09)='amsuabufr', dtype(09)='amsua',     dplat(09)='n15',     dsis(09)='amsua_n15',          dval(09)=0.0, dthin(09)=2, dsfcalc(09)=1,
+   dfile(10)='amsuabufr', dtype(10)='amsua',     dplat(10)='n18',     dsis(10)='amsua_n18',          dval(10)=0.0,dthin(10)=1, dsfcalc(10)=2,
+   dfile(11)='amsuabufr', dtype(11)='amsua',     dplat(11)='metop-a', dsis(11)='amsua_metop-a',      dval(11)=0.0,dthin(11)=1, dsfcalc(11)=2,
+   dfile(12)='airsbufr',  dtype(12)='amsua',     dplat(12)='aqua',    dsis(12)='amsua_aqua',         dval(12)=.0, dthin(12)=1, dsfcalc(12)=2,
+  dfile(13)='iasibufr',  dtype(13)='iasi',      dplat(13)='metop-a',   dsis(13)='iasi616_metop-a',     dval(13)=0.0, dthin(13)=2, dsfcalc(13)=1,
+   dfile(14)='bgst.dat',  dtype(14)='bgst',      dplat(14)=' ',       dsis(14)='t',                  dval(14)=0.0, dthin(14)=0, dsfcalc(14)=0,
+   dfile(15)='bgsw.dat',  dtype(15)='bgsuv',     dplat(15)=' ',       dsis(15)='uv',                 dval(15)=0.0, dthin(15)=0, dsfcalc(15)=0,
+  dfile(16)='bgsq.dat', dtype(16)='bgsq',       dplat(16)=' ',       dsis(16)='q',                 dval(16)=1.0,  dthin(16)=0,  dsfcalc(16)=0,
+  dfile(17)='bgsps.dat', dtype(17)='bgsps',       dplat(17)=' ',     dsis(17)='ps',                dval(17)=0.0,  dthin(17)=0,  dsfcalc(17)=0,
+  dfile(18)='airsbufr',  dtype(18)='airs',      dplat(18)='aqua',    dsis(18)='airs281SUBSET_aqua',dval(18)=0.0,dthin(18)=1, dsfcalc(18)=1,
+  dfile(19)='atmsbufr',  dtype(19)='atms',      dplat(19)='npp',     dsis(19)='atms_npp',           dval(19)=0.0, dthin(19)=1, dsfcalc(19)=0,
+ /
+  &SUPEROB_RADAR
+ /
+ &LAG_DATA
+ /
+ &HYBRID_ENSEMBLE
+   l_hyb_ens=.true.,
+   n_ens=36,
+   beta1_inv=0.5,
+   uv_hyb_ens=.true.,
+   s_ens_h=800,
+   s_ens_v=-0.8,
+   generate_ens=.false.,
+   aniso_a_en=.false.,
+   nlon_ens=960,
+   nlat_ens=482,
+   jcap_ens=319,
+   jcap_ens_test=319,
+   readin_localization=.false.,
+   oz_univ_static=.true.,
+ /
+ &RAPIDREFRESH_CLDSURF
+   dfi_radar_latent_heat_time_period=30.0,
+ /
+ &CHEM
+ /
+ &SINGLEOB_TEST
+   maginnov=1.0,magoberr=0.8,oneob_type='t',
+   oblat=23.5,oblon=120.0,obpres=850.,obdattim=2012121500,
+   obhourset=0.,
+ /

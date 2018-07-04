@@ -1,0 +1,812 @@
+
+ Fujitsu Fortran Version 2.0.0  Mon Jul 24 10:22:00 2017
+
+ Compilation information
+   Current directory : /IFS4/data/datagfs/xb80/exp/GFS_Scripts_Maintain/crtexp/src/gm2gm
+   Source file       : cwb.f90
+
+ Option information
+   Command line options : -Kfast,openmp,optmsg=2 -CcdRR8 -X9 -Fwide -V -Ec -Qa,d,i,p,t,x -c -L/package/fx100/dms/dms.v4/lib -lrdms -lgdbm -L/package/fx100/operlib/lib -lnwp
+   Effective options    : -fi -g0 -AE -Ec -Free -Fwide -O3 -Qa,d,i,p,t,x -X9
+                          -CcdRR8 -x0
+                          -KHPC_ACE2 -KFLTLD -Kadr44 -Kauto -Knoautoobjstack
+                          -Knocalleralloc -Kdalign -Keval -Knofed
+                          -Knofenv_access -Kfp_contract -Kfp_relaxed
+                          -Kfsimple -Kilfunc -Kintentopt -Klargepage
+                          -Kloop_blocking -Kloop_fission -Kloop_nofission_if
+                          -Kloop_fusion -Kloop_interchange
+                          -Kloop_nopart_parallel -Kloop_nopart_simd
+                          -Kloop_noversioning -Knolto -Knonf -Kns -Kmfunc=1
+                          -Knoocl -Komitfp -Koptmsg=2 -Knopreex
+                          -Kprefetch_conditional -Kprefetch_noindirect
+                          -Kprefetch_sequential=auto -Kprefetch_nostride
+                          -Kprefetch_cache_level=all -Kprefetch_noinfer
+                          -Kprefetch_nostrong -Kprefetch_strong_L2
+                          -Knoshortloop -Ksimd=auto -Ksimd_noseparate_stride
+                          -Knostriping -Kswp -Knotemparraystack -Kunroll
+                          -Knouxsimd -KNOXFILL
+                          -Kopenmp -Kopenmp_noassume_norecurrence
+                          -Kopenmp_noordered_reduction -Kopenmp_notls
+                          -Kthreadsafe -Knoparallel -Kparallel_nofp_precision
+                          -Knoarray_private -Knodynamic_iteration
+                          -Knoreduction -Knoregion_extension
+                          -Nallextput -Nnoalloc_assign
+                          -Ncancel_overtime_compilation -Nnocoarray
+                          -Nnocompdisp -Nnocopyarg -Nfreealloc -Nf90move
+                          -Nnohook_func -Nnohook_time -Nline -Nlst -Nlst=a
+                          -Nlst=d -Nlst=i -Nlst=p -Nlst=t -Nlst=x
+                          -Nnomallocfree -Nnoobsfun -Nnoprivatealloc
+                          -Nquickdbg=noargchk -Nquickdbg=nosubchk
+                          -Nquickdbg=noundef -NRnotrap -Nnorecursive
+                          -Nrt_notune -Nnosave -Nsetvalue=noheap
+                          -Nsetvalue=nostack -Nsetvalue=noscalar
+                          -Nsetvalue=noarray -Nsetvalue=nostruct -Nuse_rodata
+
+ External subroutine subprogram "sendmsg"
+  (inc)(line-no.)(nest)(optimize)
+               1                     !
+               2                     !***********************************************************************
+               3                     !  for CWB 2011 RFP
+               4                     !***********************************************************************
+               5                     !
+               6                           subroutine sendmsg(model,ifrom,ito,istatus)
+               7                           implicit none
+               8                           integer ifrom(:),ito(:),istatus
+               9                           character*3 model
+              10                     
+              11                           istatus=0
+              12                           return
+              13                           end
+
+ Diagnostic messages: program name(sendmsg)
+   jwd2008i-i  "cwb.f90", line 6: Dummy argument 'model' not used in this subprogram.
+   jwd2008i-i  "cwb.f90", line 8: Dummy argument 'ito' not used in this subprogram.
+   jwd2008i-i  "cwb.f90", line 8: Dummy argument 'ifrom' not used in this subprogram.
+
+ Procedure information
+   Lines      : 13
+   Statements : 7
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : sendmsg
+   Attribute and Cross reference of name
+     ifrom
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 6  8
+      |(Definition)     : 
+      |(Reference)      : 
+     istatus
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 6  8
+      |(Definition)     : 11
+      |(Reference)      : 
+     ito
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 6  8
+      |(Definition)     : 
+      |(Reference)      : 
+     model
+      |(Class and Type) : variable name, CHARACTER(3,1)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 6  9
+      |(Definition)     : 
+      |(Reference)      : 
+     sendmsg
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 6
+      |(Reference)      : 
+
+ External subroutine subprogram "recmsg"
+  (inc)(line-no.)(nest)(optimize)
+              14                     
+              15                     !----------------------------------------------------------------------
+              16                           subroutine recmsg(model,ifrom,ito,istatus)
+              17                           implicit none
+              18                     
+              19                           integer i
+              20                           character*3 model
+              21                           integer ifrom(:),ito(:),istatus
+              22                     
+              23                     
+              24                           integer tau(512),cnt,ip
+              25                           save    tau,cnt,ip
+              26                     
+              27                           istatus=0
+              28     1                     if(ip.eq.0)then
+              29     1                       open(1,file=model//'ctl',form='formatted',status='old')
+              30     2        s              do i=1,512
+              31     2        s                 read(1,'(I3)',end=100)tau(i)
+              32     2        s                 cnt=cnt+1
+              33     2        s              enddo
+              34     1               100     close(1)
+              35     1                       ip=1
+              36     1                     endif
+              37     1                     if(ip.ge.cnt) then
+              38     1                       istatus=1
+              39     1                       return
+              40     1                     endif
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+              41             8v            ifrom=tau(ip)
+              42                           ip=ip+1
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<< Loop-information  End >>>
+              43             8v            ito=tau(ip)
+              44                           return
+              45                           end
+
+ Diagnostic messages: program name(recmsg)
+   jwd6229s-i  "cwb.f90", line 30: SIMD conversion cannot be applied to DO loop: there are IF statements in the loop.
+   jwd6131s-i  "cwb.f90", line 30: SIMD conversion cannot be applied to DO loop: multiple exits are found in the loop.
+   jwd8664o-i  "cwb.f90", line 30: This loop is not software pipelined because the loop contains an instruction not covered by software pipelining, such as function call.
+   jwd6121s-i  "cwb.f90", line 31: SIMD conversion cannot be applied to DO loop: an input/output statement was found in the loop.
+   jwd6202s-i  "cwb.f90", line 32: SIMD conversion cannot be applied to DO loop: data dependency of variable 'cnt' may cause different results from serial execution for loop.
+   jwd6003s-i  "cwb.f90", line 41: SIMD conversion is applied to array description.
+   jwd8663o-i  "cwb.f90", line 41: This loop is not software pipelined because software pipelining is worthless for this loop.
+   jwd8202o-i  "cwb.f90", line 41: Loop unrolled 8 times.
+   jwd6003s-i  "cwb.f90", line 43: SIMD conversion is applied to array description.
+   jwd8663o-i  "cwb.f90", line 43: This loop is not software pipelined because software pipelining is worthless for this loop.
+   jwd8202o-i  "cwb.f90", line 43: Loop unrolled 8 times.
+
+ Procedure information
+   Lines      : 32
+   Statements : 26
+   Stack(byte): 656
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : recmsg
+   Attribute and Cross reference of name
+     cnt
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : SAVE
+      |(Declaration)    : 24  25
+      |(Definition)     : 32
+      |(Reference)      : 32  37
+     i
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 19
+      |(Definition)     : 30
+      |(Reference)      : 31
+     ifrom
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 16  21
+      |(Definition)     : 41
+      |(Reference)      : 
+     ip
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : SAVE
+      |(Declaration)    : 24  25
+      |(Definition)     : 35  42
+      |(Reference)      : 28  37  41  42  43
+     istatus
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 16  21
+      |(Definition)     : 27  38
+      |(Reference)      : 
+     ito
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 16  21
+      |(Definition)     : 43
+      |(Reference)      : 
+     model
+      |(Class and Type) : variable name, CHARACTER(3,1)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 16  20
+      |(Definition)     : 
+      |(Reference)      : 29
+     recmsg
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 16
+      |(Reference)      : 
+     tau
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, SAVE
+      |(Declaration)    : 24  25
+      |(Definition)     : 31
+      |(Reference)      : 41  43
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+        100  execution     (Definition) 34  
+                           (Reference)  31
+
+ External subroutine subprogram "dtgfix12"
+  (inc)(line-no.)(nest)(optimize)
+              46                     
+              47                           subroutine dtgfix12(idtg1,idtg2,chg)
+              48                           implicit none
+              49                     
+              50                           integer*8 idtg1,idtg2
+              51                           integer   chg,yyyy,mm,dd,hh,ii,dt,diff,rem
+              52                           integer   month(12)
+              53                           character*12 cdtg
+              54                           data      month/31,28,31,30,31,30,31,31,30,31,30,31/
+              55                     
+              56                           write(cdtg,'(i12)')idtg1
+              57                           read(cdtg,'(i4,i2,i2,i2,i2)')yyyy,mm,dd,hh,ii
+              58                     
+              59     1                     if(((mod(yyyy,4) .eq.0) .and. (mod(yyyy,100) .ne.0)) .or. &
+              60     1                       ((mod(yyyy,100) .eq. 0) .and. (mod(yyyy,400) .eq. 0))) then
+              61     1                        month(2)=29
+              62     1                     endif
+              63                     
+              64                           dt=hh+chg
+              65     1                     if(dt .lt. 0) then
+              66     1                         diff=chg*(-1)/24
+              67     1                         rem=mod(chg*(-1),24)
+              68     1                         hh=hh-rem
+              69     2                         if (hh .lt. 0)then
+              70     2                            diff=diff+1
+              71     2                            hh=hh+24
+              72     2                         endif
+              73     1                         dd=dd-diff
+              74     2                         if(dd .lt. 1)then
+              75     2                            mm=mm-1
+              76     3                            if(mm .gt. 0) then
+              77     3                              dd=dd+month(mm)
+              78     3                            else
+              79     3                              yyyy=yyyy-1
+              80     3                              mm=12
+              81     3                              dd=31
+              82     3                            endif
+              83     2                         endif
+              84     1                      elseif (dt .gt. 23)then
+              85     1                         diff=chg/24
+              86     1                         rem=mod(chg,24)
+              87     1                         hh=hh+rem
+              88     2                         if(hh .gt. 23)then
+              89     2                            hh=hh-24
+              90     2                            diff=diff+1
+              91     2                         endif
+              92     1                         dd=dd+diff
+              93     2                         if(dd .gt. month(mm))then
+              94     2                            dd=dd-month(mm)
+              95     3                            if(mm .eq. 12)then
+              96     3                               yyyy=yyyy+1
+              97     3                               mm=1
+              98     3                             else
+              99     3                               mm=mm+1
+             100     3                             endif
+             101     2                         endif
+             102     1                      else
+             103     1                        hh=dt
+             104     1                      endif
+             105                     !      idtg2=yyyy*100000000+mm*1000000+dd*10000+hh*100+ii
+             106                            write(cdtg,'(i4,i2.2,i2.2,i2.2,i2.2)')yyyy,mm,dd,hh,ii
+             107                            read(cdtg,'(i12)')idtg2
+             108                            return
+             109                     
+             110                     100    print *,'dtgfix12 error, idtg1=',idtg1
+             111                            return
+             112                            end
+
+ Procedure information
+   Lines      : 67
+   Statements : 59
+   Stack(byte): 752
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : dtgfix12
+   Attribute and Cross reference of name
+     cdtg
+      |(Class and Type) : variable name, CHARACTER(12,1)
+      |(Attributes)     : 
+      |(Declaration)    : 53
+      |(Definition)     : 56  106
+      |(Reference)      : 57  107
+     chg
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 47  51
+      |(Definition)     : 
+      |(Reference)      : 64  66  67  85  86
+     dd
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 57  73  77  81  92  94
+      |(Reference)      : 73  74  77  92  93  94  106
+     diff
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 66  70  85  90
+      |(Reference)      : 70  73  90  92
+     dt
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 64
+      |(Reference)      : 65  84  103
+     dtgfix12
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 47
+      |(Reference)      : 
+     hh
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 57  68  71  87  89  103
+      |(Reference)      : 64  68  69  71  87  88  89  106
+     idtg1
+      |(Class and Type) : variable name, INTEGER(8)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 47  50
+      |(Definition)     : 
+      |(Reference)      : 56  110
+     idtg2
+      |(Class and Type) : variable name, INTEGER(8)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 47  50
+      |(Definition)     : 107
+      |(Reference)      : 
+     ii
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 57
+      |(Reference)      : 106
+     mm
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 57  75  80  97  99
+      |(Reference)      : 75  76  77  93  94  95  99  106
+     mod
+      |(Class and Type) : intrinsic function name, INTEGER(4)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 59  59  59  59  67  86
+     month
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : DIMENSION, initialized
+      |(Declaration)    : 52  54
+      |(Definition)     : 61
+      |(Reference)      : 77  93  94
+     rem
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 67  86
+      |(Reference)      : 68  87
+     yyyy
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 51
+      |(Definition)     : 57  79  96
+      |(Reference)      : 59  59  59  59  79  96  106
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+        100  execution     (Definition) 110
+
+ External subroutine subprogram "GETFNAME"
+  (inc)(line-no.)(nest)(optimize)
+             113                     
+             114                     
+             115                           subroutine GETFNAME(pathname,logicfile,truefile,istat)
+             116                           implicit none
+             117                           integer ix,j,k,istat
+             118                           character pathname*60,logicfile*60,truefile*60,value*60,blank*60
+             119                     !     integer getenv
+             120                     
+             121                           truefile(1:60)=' '
+             122                           value(1:60)=' '
+             123                           blank(1:60)=' '
+             124                     !     i = getenv(pathname,value)
+             125                     !     if (i .eq. 0) then
+             126                           ix=index(pathname,' ')
+             127                           call getenv(pathname(1:ix-1),value)
+             128     1                     if (value(1:60) .eq. blank(1:60)) then
+             129     1                       istat=-1
+             130     1                     else
+             131     1                       j=index(value,' ')
+             132     1                       k=index(logicfile,' ')
+             133     1                       truefile(1:j-1)=value(1:j-1)
+             134     1                       truefile(j:j)='/'
+             135     1                       truefile(j+1:j+k-1)=logicfile(1:k-1)
+             136     1                       istat=0
+             137     1                     endif
+             138                           return
+             139                           end
+
+ Diagnostic messages: program name(GETFNAME)
+   jwd8204o-i  "cwb.f90", line 121: This loop is software pipelined.
+   jwd8204o-i  "cwb.f90", line 122: This loop is software pipelined.
+   jwd8204o-i  "cwb.f90", line 123: This loop is software pipelined.
+
+ Procedure information
+   Lines      : 27
+   Statements : 21
+   Stack(byte): 128
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : GETFNAME
+   Attribute and Cross reference of name
+     blank
+      |(Class and Type) : variable name, CHARACTER(60,1)
+      |(Attributes)     : 
+      |(Declaration)    : 118
+      |(Definition)     : 123
+      |(Reference)      : 128
+     GETFNAME
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 115
+      |(Reference)      : 
+     getenv
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 127
+     index
+      |(Class and Type) : intrinsic function name, INTEGER(4)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 126  131  132
+     istat
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 115  117
+      |(Definition)     : 129  136
+      |(Reference)      : 
+     ix
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 117
+      |(Definition)     : 126
+      |(Reference)      : 127
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 117
+      |(Definition)     : 131
+      |(Reference)      : 133  133  134  134  135  135
+     k
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 117
+      |(Definition)     : 132
+      |(Reference)      : 135  135
+     logicfile
+      |(Class and Type) : variable name, CHARACTER(60,1)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 115  118
+      |(Definition)     : 
+      |(Reference)      : 132  135
+     pathname
+      |(Class and Type) : variable name, CHARACTER(60,1)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 115  118
+      |(Definition)     : 127
+      |(Reference)      : 126
+     truefile
+      |(Class and Type) : variable name, CHARACTER(60,1)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 115  118
+      |(Definition)     : 121  133  134  135
+      |(Reference)      : 
+     value
+      |(Class and Type) : variable name, CHARACTER(60,1)
+      |(Attributes)     : 
+      |(Declaration)    : 118
+      |(Definition)     : 122  127
+      |(Reference)      : 128  131  133
+
+ External subroutine subprogram "vexp"
+  (inc)(line-no.)(nest)(optimize)
+             140                     
+             141                     ! IBM libmassv compatibility
+             142                     
+             143                           subroutine vexp(y,x,n)
+             144                           implicit none
+             145                           integer n,j
+             146                           real*8 x(*),y(*)
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             147     1       4v            do 10 j=1,n
+             148     1       4v            y(j)=exp(x(j))
+             149     1       4v         10 continue
+             150                           return
+             151                           end
+
+ Diagnostic messages: program name(vexp)
+   jwd6001s-i  "cwb.f90", line 147: SIMD conversion is applied to DO loop with DO variable 'j'.
+   jwd8204o-i  "cwb.f90", line 147: This loop is software pipelined.
+   jwd8205o-i  "cwb.f90", line 147: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 160.
+
+ Procedure information
+   Lines      : 12
+   Statements : 9
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : vexp
+   Attribute and Cross reference of name
+     exp
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 148
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 145
+      |(Definition)     : 147
+      |(Reference)      : 148  148
+     n
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 143  145
+      |(Definition)     : 
+      |(Reference)      : 147
+     vexp
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 143
+      |(Reference)      : 
+     x
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 143  146
+      |(Definition)     : 
+      |(Reference)      : 148
+     y
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 143  146
+      |(Definition)     : 148
+      |(Reference)      : 
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+         10  execution     (Definition) 149  
+                           (Reference)  147
+
+ External subroutine subprogram "vlog"
+  (inc)(line-no.)(nest)(optimize)
+             152                     
+             153                           subroutine vlog(y,x,n)
+             154                           implicit none
+             155                           integer n,j
+             156                           real*8 x(*),y(*)
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             157     1       4v            do 10 j=1,n
+             158     1       4v            y(j)=log(x(j))
+             159     1       4v         10 continue
+             160                           return
+             161                           end
+
+ Diagnostic messages: program name(vlog)
+   jwd6001s-i  "cwb.f90", line 157: SIMD conversion is applied to DO loop with DO variable 'j'.
+   jwd8204o-i  "cwb.f90", line 157: This loop is software pipelined.
+   jwd8205o-i  "cwb.f90", line 157: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 96.
+
+ Procedure information
+   Lines      : 10
+   Statements : 9
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : vlog
+   Attribute and Cross reference of name
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 155
+      |(Definition)     : 157
+      |(Reference)      : 158  158
+     log
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 158
+     n
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 153  155
+      |(Definition)     : 
+      |(Reference)      : 157
+     vlog
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 153
+      |(Reference)      : 
+     x
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 153  156
+      |(Definition)     : 
+      |(Reference)      : 158
+     y
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 153  156
+      |(Definition)     : 158
+      |(Reference)      : 
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+         10  execution     (Definition) 159  
+                           (Reference)  157
+
+ External subroutine subprogram "vrec"
+  (inc)(line-no.)(nest)(optimize)
+             162                     
+             163                           subroutine vrec(y,x,n)
+             164                           implicit none
+             165                           integer n,j
+             166                           real*8 x(*),y(*)
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             167     1       6v            do 10 j=1,n
+             168     1       6v            y(j)=1.d0/x(j)
+             169     1       6v         10 continue
+             170                           return
+             171                           end
+
+ Diagnostic messages: program name(vrec)
+   jwd6001s-i  "cwb.f90", line 167: SIMD conversion is applied to DO loop with DO variable 'j'.
+   jwd8204o-i  "cwb.f90", line 167: This loop is software pipelined.
+   jwd8205o-i  "cwb.f90", line 167: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 168.
+
+ Procedure information
+   Lines      : 10
+   Statements : 9
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : vrec
+   Attribute and Cross reference of name
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 165
+      |(Definition)     : 167
+      |(Reference)      : 168  168
+     n
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 163  165
+      |(Definition)     : 
+      |(Reference)      : 167
+     vrec
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 163
+      |(Reference)      : 
+     x
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 163  166
+      |(Definition)     : 
+      |(Reference)      : 168
+     y
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 163  166
+      |(Definition)     : 168
+      |(Reference)      : 
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+         10  execution     (Definition) 169  
+                           (Reference)  167
+
+ External subroutine subprogram "vsqrt"
+  (inc)(line-no.)(nest)(optimize)
+             172                     
+             173                           subroutine vsqrt(y,x,n)
+             174                           implicit none
+             175                           integer n,j
+             176                           real*8 x(*),y(*)
+                                   <<< Loop-information Start >>>
+                                   <<<  [OPTIMIZATION]
+                                   <<<    SIMD(VL: 4)
+                                   <<<    SOFTWARE PIPELINING
+                                   <<< Loop-information  End >>>
+             177     1       6v            do 10 j=1,n
+             178     1       6v            y(j)=sqrt(x(j))
+             179     1       6v         10 continue
+             180                           return
+             181                           end
+
+ Diagnostic messages: program name(vsqrt)
+   jwd6001s-i  "cwb.f90", line 177: SIMD conversion is applied to DO loop with DO variable 'j'.
+   jwd8204o-i  "cwb.f90", line 177: This loop is software pipelined.
+   jwd8205o-i  "cwb.f90", line 177: The software-pipelined loop is chosen at run time when the iteration count is greater than or equal to 240.
+
+ Procedure information
+   Lines      : 10
+   Statements : 9
+   Stack(byte): 0
+   Prefetch num: 0
+
+ Scoping unit of external sub-program : vsqrt
+   Attribute and Cross reference of name
+     j
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : 
+      |(Declaration)    : 175
+      |(Definition)     : 177
+      |(Reference)      : 178  178
+     n
+      |(Class and Type) : variable name, INTEGER(4)
+      |(Attributes)     : dummy-argument
+      |(Declaration)    : 173  175
+      |(Definition)     : 
+      |(Reference)      : 177
+     sqrt
+      |(Class and Type) : intrinsic function name, REAL(8)
+      |(Attributes)     : PURE, ELEMENTAL
+      |(Declaration)    : 
+      |(Definition)     : 
+      |(Reference)      : 178
+     vsqrt
+      |(Class and Type) : external subroutine name
+      |(Attributes)     : 
+      |(Declaration)    : 
+      |(Definition)     : 173
+      |(Reference)      : 
+     x
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 173  176
+      |(Definition)     : 
+      |(Reference)      : 178
+     y
+      |(Class and Type) : variable name, REAL(8)
+      |(Attributes)     : DIMENSION, dummy-argument
+      |(Declaration)    : 173  176
+      |(Definition)     : 178
+      |(Reference)      : 
+   Cross reference of label
+     (Label) (label-kind)               (line-no.)
+     ------- ------------- ------------ ----------
+         10  execution     (Definition) 179  
+                           (Reference)  177
+
+ Total information
+   Procedures       : 8
+   Total lines      : 181
+   Total statements : 149
+   Total stack(byte): 1536
+   Total prefetch num: 0
+

@@ -1,0 +1,15 @@
+
+1. If you are planning to run GFS scripts on outside security fx100 machine, 
+you should make sure to modify CREAT_GFSEXP.ksh :
+Inside :
+  MACHINE='fx100'
+  DTMV="login11 ssh datamv07.cwb.gov.tw"
+  LGIN="login11"
+Outside :
+  MACHINE='fx100'
+  DTMV="login13 ssh datamv05.cwb.gov.tw"
+  LGIN="login13"
+
+2. To create GFS experiment, modify CREAT_GFSEXP.ksh properly and execute shell scripts.  
+  ./CREAT_GFSEXP.ksh
+

@@ -1,0 +1,10 @@
+ &filst
+ ifilin='VARDMS',
+ ifilout='FCSTDMS',
+ cwbout='/nwpr/gfs/a398/data/t320l60/gfst320l60/tmpdir/gfs_cwbout',
+ bckfile='BCKOPS',
+ phyout='/nwpr/gfs/a398/data/t320l60/gfst320l60/tmpdir/gfs_phyout',
+ namlsts='/nwpr/gfs/a398/data/t320l60/gfst320l60/namlsts',
+ crdate='/nwpr/gfs/a398/data/t320l60/gfst320l60/crdate',
+ ocards='/nwpr/gfs/a398/data/t320l60/gfst320l60/ocards',
+ &end

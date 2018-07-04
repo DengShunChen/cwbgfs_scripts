@@ -1,0 +1,5 @@
+ &modlst
+ taup=  6.0,
+ ptop= 0.1,
+ ksgeo= 2,
+ &end

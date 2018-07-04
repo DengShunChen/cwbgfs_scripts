@@ -1,0 +1,74 @@
+ &model_param
+ nx=960,
+ lev= 60,
+ ncld= 2,
+ nout= 5000,
+ io_quilting=t,
+ &end
+
+ &modlst
+ taui= 0.0,
+ taue= 12.0,
+ tauo= 1.0,
+ taup=  6.0,
+ taureg=6.,
+ tausig=12.,
+ dt=180.,
+ cstar=f,
+ update=t,
+ lzadv=t,
+ lsimpl=t,
+ tfilt=0.05,
+ hfilt=1.7556e14,
+ ksgeo=2,
+ yesdia=t,
+ dopbl=t,
+ docup=t,
+ dorad=t,
+ dolsp=t,
+ doshl=t,
+ dodry=f,
+ dograv=t,
+ donnmi=t,
+ cutfreq=3,
+ nnmivm=3,
+ doincr=t,
+ hdiff=t,
+ frad=1.0,
+ ldiag=1,
+ idg=40,
+ jdg=108,
+ itypbl=0,
+ numreduce=8,
+ ptmeans=800.,
+ ptop=0.1,
+ nmcup=3,
+ nmpbl=3,
+ nmland=2,
+ nmshl=1,
+ ktcup=20,
+ cgw=1.20e-4,
+ ggdef='gg0g',
+ gmdef='ggmg',
+ &end
+
+ &typ
+  write_tau=12,
+ &end
+
+
+    for T319
+ nx=960,
+ dt=180.,
+ hfilt=8.6691e13, (150831 a361=> 1.7556e14)
+ cgw=0.75e-4,   (150901 a361=> 1.20e-4)
+ ggdef='gg0g',
+ gmdef='ggmg',
+    for T511
+ nx=1536,
+ dt=90.,
+ hfilt=1.3259e13,
+ cgw=1.2e-4,
+ ggdef='gh0g',
+ gmdef='ghmg',
+

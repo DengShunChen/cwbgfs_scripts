@@ -1,0 +1,9 @@
+ &modlstbogus
+ ptop=0.1,
+ ksgeo= 2,
+ nnmiit=3,
+ nnmivm=3,
+ cutfreq=3.,
+ diabini=f
+ &end
+

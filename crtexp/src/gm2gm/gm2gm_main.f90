@@ -1,0 +1,1181 @@
+ program gm2gm_main
+   implicit none
+
+   integer :: im, jm, km ,nx, my, lev, lmax, ierr 
+   integer, parameter :: unit_file = 15
+   character(len=80) ::  namlsts
+   character(len=8)  :: cdtg8
+   character(len=12) :: cdtg
+   character(len=4)  :: ctau
+   character(len=26) :: lrec
+   character(len=6)  :: typ
+   character(len=4)  :: topohgt
+   character(len=2)  :: dmsflagin, dmsflagout
+
+   integer(kind=8)   :: idtg,idtg_fg,idtgx
+
+   integer :: i,j,k,imx,jmx
+   integer :: ksgeo,nargc,iargc,itaup,istat_r,istat_w,istat
+   integer :: nt,itaux,nxj,iwnd,nxmy
+   integer :: lenrec1,lenrec2
+   integer :: imn, jmn
+   real    :: ptop1,ptop2,grav,cp,capa,rgas
+   real    :: dtt
+   real    :: amx, amn
+ 
+   logical :: hybrid1,hybrid2      
+   logical :: first,horizon_intpo
+
+   character(len=64) :: type_r,type_w,argument 
+!---------------------------------------------------------------------------------
+!  transfer the sigma-level grid data between different resolutions
+!  (im ,jm ,lm   ) : original grid system
+!  (nx ,my ,lev  ) : new grid system
+!---------------------------------------------------------------------------------
+   real, allocatable,save :: pt(:,:),plt(:,:,:),pt2(:,:),plt2(:,:,:)       &
+                            ,sgeo(:,:),plt2p(:,:,:)                        &
+                            ,sig(:),sig40(:),sig30(:),puvphi(:)            &
+                            ,pk(:,:),pk2(:,:),presp(:,:,:)                 &
+                            ,tens(:),pkx(:,:),pk2x(:,:)                    &
+                            ,wkr(:,:),xr(:),yr(:),zz(:,:,:)                &
+                            ,hld1(:,:),fld1(:,:,:),fld2(:,:,:)             &
+                            ,phi(:,:,:),wkpz(:,:),anlslp(:,:),t1000(:,:)   &
+                            ,wkp(:,:),wkq(:,:),qsat(:,:,:),qsat2(:,:,:)    &
+                            ,sigma(:,:),aki(:),bki(:)
+
+   integer, allocatable, save :: iwkr(:,:),ihld(:,:)
+   character(len=6), allocatable, save :: irecfe(:)
+!---------------------------------------------------------------------------------
+!  bck     : bckops dmsfile name for to-target for the use of rebuilding
+!            pt basing on it's terrain
+!  ifilin  : masops dmsfile name for from-target
+!  ifilout : masops dmsfile name for to-target
+!---------------------------------------------------------------------------------
+   character(len=24) :: bck='GM2GM_BCK'
+   character(len=24) :: ifilin='GM2GM_MASIN'
+   character(len=24) :: ifilout='GM2GM_MASOUT'
+!---------------------------------------------------------------------------------
+!  ggdef : definition of gg keys for operational gfs
+!  gmdef : definition of gm keys for operational gfs
+!---------------------------------------------------------------------------------
+   character(len=4)  :: ggdef1,gmdef1
+   character(len=4)  :: ggdef2,gmdef2
+
+!  ksgeo, ptop : be consistent with the operational use
+   data ksgeo/ 2 /, ptop2/ 0.1 /, ptop1/1.0/
+
+!  cons
+   data grav/9.806/
+   data cp/1004.24/
+
+   namelist /gm2gm_param/dmsflagin,im,km,dmsflagout,nx,lev,lmax
+
+!---------------------------------------------------------------------------------
+
+   ! defalut value
+   dmsflagin='GG'
+   dmsflagout='GH'
+   im=960
+   km=40
+   nx=1536
+   lev=60
+   lmax=16
+   
+   ! get namlist file name 
+   call getenv("GM2GM_NAMLSTS",namlsts)
+
+   ! read namelist 
+   open (unit=unit_file,file=trim(namlsts),form='formatted') 
+   read(unit_file,nml=gm2gm_param) 
+   close(unit_file)
+
+   ! write namelist
+   write(6,nml=gm2gm_param) 
+
+   ggdef1=trim(dmsflagin)//'0G'
+   gmdef1=trim(dmsflagin)//'MG'
+   
+   ggdef2=trim(dmsflagout)//'0G'
+   gmdef2=trim(dmsflagout)//'MG'
+
+!DSADD >>>
+!  if (ggdef1=='GE0G') then  ! T180
+!    im=540 
+!  elseif(ggdef1=='GF0G') then ! T240
+!    im=720
+!  elseif(ggdef1=='GG0G') then ! T320
+!    im=960
+!  elseif(ggdef1=='GH0G') then ! T511
+!    im=1536
+!  else
+!    print*,'Invalidated setting ggdef1=',ggdef1,' Stop program !!'
+!    stop
+!  endif
+
+!  if (ggdef2=='GE0G') then  ! T180
+!    nx=540 
+!  elseif(ggdef2=='GF0G') then ! T240
+!    nx=720
+!  elseif(ggdef2=='GG0G') then ! T320
+!    nx=960
+!  elseif(ggdef2=='GH0G') then ! T511
+!    nx=1536
+!  else
+!    print*,'Invalidated setting ggdef2=',ggdef2,' Stop program !!'
+!    stop
+!  endif
+      
+   if (km==40) then
+     ptop1=1.0
+     hybrid1=.false.
+   elseif (km==30) then
+     ptop1=1.0
+     hybrid1=.false.
+   elseif (km==60) then
+     ptop1=0.1
+     hybrid1=.true.
+   else
+     print*,'Invalidated setting km',km,' Stop program !!'
+     stop
+   endif
+
+   if (lev==40) then
+     ptop2=1.0
+     hybrid2=.false.
+   elseif (lev==60) then
+     ptop2=0.1
+     hybrid2=.true.
+   else
+     print*,'Invalidated setting lev',lev,' Stop program !!'
+     stop
+   endif
+
+   write(6,*)'horizontal interpolation - from ',ggdef1(1:2),' to ',ggdef2(1:2)
+   write(6,*)'vertical   interpolation - from ',km,' layers to ',lev,' layers'
+   write(6,*)'hybrid vertical coordinate hybrid1 = ',hybrid1,' hybrid2 =',hybrid2
+
+   !allocate arrays
+   jm=im/2
+   km=km
+   my=nx/2
+
+   allocate(pt(nx,my),plt(nx,km,my),pt2(nx,my),plt2(nx,lev,my)       &
+              ,sgeo(nx,my),plt2p(nx,lev,my)                             &
+              ,sig(km+1),sig40(40+1),sig30(30+1),puvphi(lmax)           &
+              ,pk(nx,km),pk2(nx,km),presp(nx,km+2,my)                   &
+              ,tens(km+2),pkx(nx,lev),pk2x(nx,lev)                      &
+              ,wkr(im,jm),xr(nx),yr(my),zz(nx,my,lmax)                  &
+              ,hld1(nx,my),fld1(nx,km+2,my),fld2(nx,lev,my)             &
+              ,phi(nx,lev,my),wkpz(nx,lev),anlslp(nx,my),t1000(nx,my)   &
+              ,wkp(nx,my),wkq(nx,my),qsat(nx,km,my),qsat2(nx,lev,my)    &
+              ,sigma(lev+1,2),aki(lev+1),bki(lev+1), stat=ierr)
+
+   if (ierr .ne. 0) then
+     write(6,*) 'allocate real fail '
+     stop
+   end if
+
+   allocate(iwkr(im,jm),ihld(nx,my), stat=ierr)
+
+   if (ierr .ne. 0) then
+     write(6,*) 'allocate integer fail '
+     stop
+   end if
+
+   allocate(irecfe(lmax), stat=ierr)
+
+   if (ierr .ne. 0) then
+     write(6,*) 'allocate character fail '
+     stop
+   end if
+
+   irecfe=(/'010000','020000','030000','050000','070000','100000',  &
+            '150000','200000','250000','300000','400000','500000',  &
+            '700000','850000','925000','h00000'/)
+
+   puvphi=(/10.,20.,30.,50.,70., 100.,150.,200.,250.,300.,400.     &
+          ,500.,700., 850.,925.,1000./)
+
+      ! for 40 layers
+   sig40=(/0.000000,0.008139,0.018234,0.030288,0.044298,0.060266, &
+           0.078192,0.098074,0.119914,0.143712,0.169467,0.197179, &
+           0.226848,0.258475,0.292060,0.327601,0.365100,0.404557, &
+           0.445970,0.489342,0.534670,0.579998,0.622202,0.661282, &
+           0.697237,0.730067,0.759773,0.786354,0.809811,0.832097, &
+           0.853213,0.873158,0.891933,0.909538,0.925972,0.941236, &
+           0.955330,0.968253,0.980006,0.990588,1.000000/)
+
+   ! for 30 layers
+   sig30=(/0.000000,0.009788,0.023275,0.040460,0.061344,0.085927, &
+           0.114208,0.146189,0.181867,0.221245,0.264321,0.311096, &
+           0.361570,0.415742,0.473613,0.535183,0.596752,0.652503, &
+           0.702436,0.746549,0.784844,0.817321,0.847361,0.874966, &
+           0.900135,0.922869,0.943166,0.961028,0.976455,0.989445, &
+           1.000000/)
+
+   ! aki and bki for hybrid sigma-pressure coordinate
+   aki=(/   .00000,   .85400,  1.82570,  2.93106,  4.18811,  5.61725, &
+           7.24145,  9.08662, 11.18186, 13.55986, 16.25721, 19.37178, &
+          22.77809, 26.69766, 31.12936, 36.13468, 41.78099, 48.14158, &
+          55.29569, 63.32831, 72.32859, 82.26131, 92.84074,103.75080, &
+         114.67568,125.30212,135.32210,144.43608,152.35664,158.81248, &
+         163.55255,166.35379,167.12546,165.92496,162.84922,158.02912, &
+         151.62865,143.84211,134.88958,125.01073,114.45724,103.48445, &
+          92.34269, 81.26901, 70.47979, 60.16483, 50.48301, 41.55990, &
+          33.48706, 26.32304, 20.09558, 14.80485, 10.42730,  6.91977, &
+           4.22363,  2.26873,   .97701,   .26557,   .02193,   .00000, &
+           0.00000/)
+
+   bki=(/.00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+         .00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+         .00000000,.00000000,.00000000,.00000000,.00000000,.00000000, &
+         .00000000,.00000000,.00000104,.00013304,.00077978,.00235711, &
+         .00528030,.00995912,.01679191,.02615862,.03841285,.05387320, &
+         .07281429,.09545413,.12184549,.15185637,.18527624,.22182071, &
+         .26113359,.30279276,.34632012,.39119502,.43687069,.48279246, &
+         .52841650,.57322786,.61675643,.65858995,.69838324,.73586353, &
+         .77083188,.80316112,.83279100,.85972113,.88400268,.90572942, &
+         .92502870,.94205290,.95697164,.96996497,.98124505,.99058760, &
+         1.00000000/)
+
+!CWB2015 <<<
+
+!
+   sigma(:,1) = bki(:)
+   sigma(:,2) = aki(:)
+
+   if (km==40) then
+     sig=sig40
+   elseif (km==30) then
+     sig=sig30
+   else
+     print*,'Invalidated setting km',km,' Stop program !!'
+     stop
+   endif
+       
+!
+   capa= 1.0/3.5
+   rgas= capa*cp
+   first=.true.
+   horizon_intpo = (im*jm) .ne. (nx*my)
+   !horizon_intpo = .true.
+!
+!  read in arguments from outside
+!
+      nargc=iargc()
+      if(nargc.eq.0)then
+        print*,'input -- cdtg ctau_guess, ex. 02070112 0006 '
+        stop
+      else
+        call getarg(1,cdtg8)
+        call getarg(2,ctau)
+      endif
+      print*,'dtg    = ',cdtg8
+      print*,'tau    = ',ctau
+!
+! transfer idtg8 to idtg (i12)
+!
+      if( cdtg8(1:1) .ne. '9' ) then
+       cdtg='20'//cdtg8//'00'
+      else
+       cdtg='19'//cdtg8//'00'
+      end if
+      read(cdtg,'(i12)')idtg
+      read(ctau,'(i4)')itaup
+      call dtgfix12(idtg,idtg_fg,-itaup)
+      print*,'itaup= ',itaup
+      print*,'idtg= ',idtg
+      print*,'idtg_fg= ',idtg_fg
+!
+! specify the dms read-in and write-out only for 34 keys
+!
+      type_r="RORDER"//char(0)
+      type_w="WORDER"//char(0)
+      argument="34"//char(0)
+      call dmscfg(type_r,argument,istat_r)
+      call dmscfg(type_w,argument,istat_w)
+      istat = abs(istat_r) + abs(istat_w)
+      if(istat.ne.0)then
+        print *,'dmscfg error'
+        call dmsexit(-1)
+      endif
+!
+      call dmsmsg("ALL",istat)
+      call dmsopn(bck,"r",istat)
+      call dmsopn(ifilin,"r",istat)
+      call dmsopn(ifilout,"w",istat)
+!
+!  (1) read in the original data at the (im, jm) grids
+!  (2) interpolate the data from (im, jm) to (nx, my) 
+!
+      lenrec1 = im*jm
+      lenrec2 = nx*my
+!
+      if(ksgeo.eq.99) then
+        topohgt='gbkf'
+      else
+        write(topohgt,'(a3,i1.1)')'gbk',ksgeo
+      end if
+      write(lrec,'("s00060",a4,a4,12x)')topohgt,ggdef2
+      print*,'keysgeo= ',lrec
+      call dmsread (nx,my,lrec,lenrec2,'H',bck,sgeo,istat)
+!
+      do j = 1, my
+      do i = 1, nx
+       sgeo(i,j) = sgeo(i,j)*grav
+      end do
+      end do
+
+!======================================================== time loop 
+  do nt = 1, 2
+!
+    if( nt .eq. 1 )then
+      itaux = itaup
+      idtgx = idtg_fg
+    elseif( nt .eq. 2)then
+      itaux = 0
+      idtgx = idtg
+    end if
+    print*,'idtgx= ',idtgx
+
+!                  --- terrain pressure ---
+    call syslbl ('b00010',idtgx,itaux,ggdef1,lrec)
+    call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    if( horizon_intpo ) then
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,pt,0,xr,yr,first)
+    endif
+    first=.false.
+!
+!  calculate pt based on phi on p levels
+!
+    do k = 1, lmax
+      call syslbl(irecfe(k),idtgx,itaux,ggdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      if( horizon_intpo ) then
+        call xyintpo ('gg',im,jm,'gg',nx,my,wkr,zz(1,1,k),0,xr,yr,first)
+      endif
+    enddo
+!
+    call syslbl ('ssl010',idtgx,itaux,ggdef1,lrec)
+    call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    if( horizon_intpo ) then
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,anlslp,0,xr,yr,first)
+    endif
+!
+    call syslbl ('h00100',idtgx,itaux,ggdef1,lrec)
+    call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    if( horizon_intpo ) then
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,t1000,0,xr,yr,first)
+    endif
+!
+    call phi2pt(nx,my,lmax,zz,anlslp,t1000,puvphi,sgeo,pt2)
+!
+    call syslbl ('b00010',idtgx,itaux,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,pt2,istat)
+!
+    do i = 1, nx*my
+      pt(i,1) = pt(i,1)-ptop1
+      pt2(i,1)= pt2(i,1)-ptop2
+    end do
+!
+    nxj=nx
+    do j = 1, my       
+!DS >>>
+      if (hybrid1) then
+        call prexp_hybrid_cwb( nxj,nx,lev,ptop1,sigma, pt(1,j), pk, pk2, plt(1,1,j))
+      else
+        call prexp( nx, km,ptop1, sig, pt(1,j), pk, pk2, plt(1,1,j))
+      endif
+
+      if (hybrid2) then
+        call prexp_hybrid_cwb( nxj,nx,lev,ptop2,sigma,pt2(1,j),pkx,pk2x,plt2(1,1,j))
+!       else
+!        call prexp( nx,lev,ptop2,sig,pt2(1,j),pkx,pk2x,plt2(1,1,j))
+      endif
+!<<<<       
+!
+      do i = 1, nx*km
+        presp(i,2,j) = log(plt(i,1,j))
+      end do
+
+      do i = 1, nx*lev
+        plt2p(i,1,j)=plt2(i,1,j)
+        plt2(i,1,j) = log(plt2(i,1,j))
+      end do
+    end do
+!
+    do j = 1, my
+    do i = 1, nx
+      if(plt2(i,lev,j) .le. presp(i,km+1,j))then
+        presp(i,km+2,j) = log(1.001*plt(i,km,j))
+      else
+        presp(i,km+2,j) = plt2(i,lev,j)+log(1.001)
+      end if
+!
+      if(plt2(i,1,j) .ge. presp(i,2,j))then
+        presp(i,1,j) = log(0.999*plt(i,1,j))
+      else
+!jh         presp(i,1,j) = plt2(i,1,j)+log(0.999)
+         presp(i,1,j) = plt2(i,1,j)+log(0.0999)
+      end if
+    end do
+    end do
+!
+!     do i = 1, nx*km
+!      plt(i,1,j) = log(plt(i,1,j))
+!     end do
+!
+    do k = 1, km+2
+      tens(k) = 1.0
+    end do
+    tens(1) = 0.
+    tens(km+2) = 0.
+
+!---- tt/phi begin
+    iwnd = 0
+    nxmy = nx*my
+    do k = 1, km
+!                   --- temperature ---
+      write (typ, '("m",i2.2,"100")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+      call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      if( horizon_intpo ) then
+        call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+      endif
+      do j = 1, my
+      do i = 1, nx
+        fld1(i,k+1,j) = hld1(i,j)
+        wkp(i,j) = plt(i,k,j)
+      end do
+      end do
+!
+      call qsatq(nxmy,hld1,wkp,wkq)
+      do j = 1, my
+      do i = 1, nx
+        qsat(i,k,j) = wkq(i,j)
+      end do
+      end do
+!
+    end do
+!
+    do j = 1, my
+      do i = 1, nx
+        fld1(i,1,j) = fld1(i,2,j)
+        dtt = (presp(i,km+2,j)-presp(i,km+1,j))*fld1(i,km+1,j)*rgas*0.0065/grav
+        fld1(i,km+2,j) = fld1(i,km+1,j)+dtt
+      end do
+!
+      call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+    end do
+!
+!---
+    do k = 1, lev
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = fld2(i,k,j)
+        wkp(i,j) = exp( plt2(i,k,j) )
+      end do
+      end do
+      write (typ, '("m",i2.2,"100")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+      call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+!
+      call qsatq(nxmy,hld1,wkp,wkq)
+      do j = 1, my
+      do i = 1, nx
+       qsat2(i,k,j) = wkq(i,j)
+      end do
+      end do
+!
+    end do
+!
+!  derive geopotential height from temp
+!
+    do j = 1, my
+!
+!      call prexp( nx,lev,ptop2,sig2,pt2(1,j),pkx,pk2x,wkpz)
+      call prexp_hybrid_cwb(nxj,nx,lev,ptop2,sigma,pt2(1,j),pkx,pk2x,wkpz)
+!
+      do i = 1, nx
+        phi(i,lev,j)= cp*fld2(i,lev,j)*(pk2x(i,lev)-pkx(i,lev)) + sgeo(i,j)
+      end do
+!
+      do k = lev-1,1,-1
+      do i = 1, nx
+        phi(i,k,j)= phi(i,k+1,j)+cp*(fld2(i,k,j)*(pk2x(i,k)-pkx(i,k)) &
+                 + fld2(i,k+1,j)*(pkx(i,k+1)-pk2x(i,k)))
+      end do
+      end do
+!
+    end do
+!
+    do k = 1, lev
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = phi(i,k,j)/grav
+      end do
+      end do
+      write (typ, '("m",i2.2,"000")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+      call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    end do
+!--- tt/phi end
+
+
+    iwnd = 0
+    do k = 1, km
+!                   --- mixing ratio ---
+      write (typ, '("m",i2.2,"500")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+      call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      if( horizon_intpo ) then
+        call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+      endif
+
+      do j = 1, my
+      do i = 1, nx
+!jh       fld1(i,k+1,j) = min(1.0, max(0.001, hld1(i,j)/qsat(i,k,j)))
+        hld1(i,j)=max(1.0e-8,hld1(i,j))
+!jh       fld1(i,k+1,j) = min(1.0, hld1(i,j)/qsat(i,k,j))
+        fld1(i,k+1,j) = hld1(i,j)
+      end do
+      end do
+    end do
+!
+    do j = 1, my
+      do i = 1, nx
+        fld1(i,1,j) = fld1(i,2,j)
+        fld1(i,km+2,j) = fld1(i,km+1,j)
+      end do
+!
+      call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+    end do
+!
+    do k = 1, lev
+!        print *,'k=',k,' plt2p(556,k,438)=',plt2p(556,k,438)
+!        print *,'bef fld2(556,k,438)=',fld2(556,k,438)
+      do j = 1, my
+      do i = 1, nx
+!jh       hld1(i,j) = min(1.0, max(0.001, fld2(i,k,j)))*qsat2(i,k,j)
+!        hld1(i,j)=min(1.0, max(1.0e-7,fld2(i,k,j)))
+!        hld1(i,j)=hld1(i,j)*qsat2(i,k,j)
+        hld1(i,j)= max(1.0e-8,fld2(i,k,j))
+          if( plt2p(i,k,j) .le. 2. )then
+            if(hld1(i,j) .gt. 7.5e-6)hld1(i,j)=7.5e-6
+            if(hld1(i,j) .lt. 2.5e-6)hld1(i,j)=2.5e-6
+          else if( plt2p(i,k,j) .le. 50. .and. plt2p(i,k,j) .gt. 2.)then
+            if(hld1(i,j) .gt. 1.2e-5)hld1(i,j)=1.2e-5
+            if(hld1(i,j) .lt. 2.0e-6)hld1(i,j)=2.0e-6
+          else if( plt2p(i,k,j) .le. 100. .and. plt2p(i,k,j) .gt. 50.)then
+            if(hld1(i,j) .gt. 8.0e-6)hld1(i,j)=8.0e-6
+            if(hld1(i,j) .lt. 1.0e-7)hld1(i,j)=1.0e-7
+          end if
+      end do
+      end do
+!        print *,'aft hld1(556,438)=',hld1(556,438)
+      write (typ, '("m",i2.2,"500")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+      call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    end do
+!
+!  only first guest for cloud water content
+!
+    if( nt .eq. 1 )then
+
+      iwnd = 0
+      do k = 1, km
+!                   --- cloud water content ---
+        write (typ, '("m",i2.2,"550")' ) k
+        call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+        call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+        if( horizon_intpo ) then
+          call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+        endif
+        do j = 1, my
+        do i = 1, nx
+          fld1(i,k+1,j) = hld1(i,j)
+        end do
+        end do
+!
+      end do
+!
+      do j = 1, my
+        do i = 1, nx
+          fld1(i,1,j) = fld1(i,2,j)
+          fld1(i,km+2,j) = fld1(i,km+1,j)
+        end do
+!
+        call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+      end do
+!
+      do k = 1, lev
+        do j = 1, my
+        do i = 1, nx
+!jh       hld1(i,j) = max(0.0000001, fld2(i,k,j))
+          hld1(i,j) = max(1.e-12, fld2(i,k,j))
+          if( plt2p(i,k,j) .le. 50. )then
+             if(hld1(i,j) .gt. 1.e-12)hld1(i,j)=1.e-12
+          end if
+        end do
+        end do
+        write (typ, '("m",i2.2,"550")' ) k
+        call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+        call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      end do
+
+    endif
+!
+    iwnd = 1
+    do k = 1, km
+!                   --- wind ---
+      write (typ, '("m",i2.2,"200")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+      call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      if( horizon_intpo ) then
+        call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+      endif
+      do j = 1, my
+      do i = 1, nx
+        fld1(i,k+1,j) = hld1(i,j)
+      end do
+      end do
+!
+    end do
+!
+    do j = 1, my
+      do i = 1, nx
+        fld1(i,1,j) = fld1(i,2,j)
+        fld1(i,km+2,j) = fld1(i,km+1,j)
+      end do
+!
+      call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+    end do
+!
+    do k = 1, lev
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = fld2(i,k,j)
+      end do
+      end do
+      write (typ, '("m",i2.2,"200")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+      call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    end do
+!
+    do k = 1, km
+      write (typ, '("m",i2.2,"210")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+      call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      if( horizon_intpo ) then
+        call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+      endif
+      do j = 1, my
+      do i = 1, nx
+        fld1(i,k+1,j) = hld1(i,j)
+      end do
+      end do
+    end do
+!
+    do j = 1, my
+      do i = 1, nx
+        fld1(i,1,j) = fld1(i,2,j)
+        fld1(i,km+2,j) = fld1(i,km+1,j)
+      end do
+!
+      call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+    end do
+!
+    do k = 1, lev
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = fld2(i,k,j)
+      end do
+      end do
+      write (typ, '("m",i2.2,"210")' ) k
+      call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+      call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    end do
+!
+    if( nt .eq. 2 )then
+!       go to 1371   ! no Ozone
+!                   --- ozone ---
+      do k = 1, km
+        write (typ, '("m",i2.2,"560")' ) k
+        call syslbl (typ,idtgx,itaux,gmdef1,lrec)
+        call dmsread (im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+        if(istat.ne.0) go to 1371 ! no Ozone
+
+        if( horizon_intpo ) then
+          call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,iwnd,xr,yr,first)
+        endif
+        do j = 1, my
+        do i = 1, nx
+          fld1(i,k+1,j) = hld1(i,j)
+        enddo
+        enddo
+      enddo
+!
+      do j = 1, my
+        do i = 1, nx
+          fld1(i,1,j) = fld1(i,2,j)
+          fld1(i,km+2,j) = fld1(i,km+1,j)
+        end do
+        call vterpj( nx,km+2,lev,presp(1,1,j),fld1(1,1,j),plt2(1,1,j),fld2(1,1,j),tens )
+      end do
+!
+      do k = 1, lev
+        do j = 1, my
+        do i = 1, nx
+          hld1(i,j) = fld2(i,k,j)
+          if(hld1(i,j).lt.1.e-10)hld1(i,j)=1.e-10
+        end do
+        end do
+        write (typ, '("m",i2.2,"560")' ) k
+        call syslbl (typ,idtgx,itaux,gmdef2,lrec)
+        call dmswrit (nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      enddo
+
+ 1371 continue
+! endif nt.eq.2
+    endif
+!
+  end do
+!======================================================== end of time loop 
+!
+!  some fields at the surface
+!
+  itaux = 0
+!
+  if( horizon_intpo ) then   !***************************************8
+!                             ---- SST ----
+    call syslbl ('w00100',idtg,itaux,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    call syslbl ('w00100',idtg,itaux,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!                             ---- ice mask ----
+    call syslbl ('w00090',idtg,itaux,ggdef1,lrec)
+    call dmsreadi(im,jm,lrec,lenrec1,'I',ifilin,iwkr,istat)
+    do j = 1, jm
+      do i = 1, im
+        wkr(i,j) = float(iwkr(i,j))
+      end do
+    end do
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+      do i = 1, nx
+        ihld(i,j) = min( 1, int(hld1(i,j)+0.5) )
+      end do
+    end do
+    call syslbl ('w00090',idtg,itaux,ggdef2,lrec)
+    call dmswriti(nx,my,lrec,lenrec2,'I',ifilout,ihld,istat)
+
+! tau=000                        ---- snow depth ----
+    call syslbl ('b00650',idtg,itaux,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+    print*,'B65-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+    do i = 1, nx
+      hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+    end do
+    end do
+    call syslbl ('b00650',idtg,itaux,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+    print*,'B65-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+
+!                               ---- ice fraction ------
+    call syslbl ('w00091',idtg,itaux,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+    print*,'w00091-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+    do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+    end do
+    end do
+    call syslbl ('w00091',idtg,itaux,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+    print*,'w00091-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+
+! tau=006                      ---- snow depth ----
+    call syslbl ('b00650',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+    print*,'B65-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+    do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+    end do
+    end do
+    call syslbl ('b00650',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+    print*,'B65-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+
+!                             ---- ground wetness ----
+    call syslbl ('s005a1',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+    print*,'S54-- before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+    do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+    end do
+    end do
+    call syslbl ('s005a1',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+    print*,'S54-- after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+
+!                             ---- ground temperature ----
+    call syslbl ('s00100',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    call syslbl ('s00100',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+    print*,' after interpo -- tg at (49,84) = ',hld1(49,84)
+
+!                             ---- soil temperature ----
+    call syslbl ('s01100',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    call syslbl ('s01100',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!
+    call syslbl ('s02100',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    call syslbl ('s02100',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!                             ---- soil moisture ----
+    call syslbl ('s005c0',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+!  canopy must be non-negative
+    do j = 1, my
+    do i = 1, nx
+       hld1(i,j) = max( 0., min(hld1(i,j),0.5) )
+    end do
+    end do
+    call syslbl ('s005c0',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!
+    call syslbl ('s015b0',idtg_fg,itaup,ggdef1,lrec)
+    call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+    call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+    do j = 1, my
+    do i = 1, nx
+      hld1(i,j) = max( 0., min(hld1(i,j),1.0) )
+    end do
+    end do
+    call syslbl ('s015b0',idtg_fg,itaup,ggdef2,lrec)
+    call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!
+      call syslbl ('s025b0',idtg_fg,itaup,ggdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = max( 0., min(hld1(i,j),1.0) )
+      end do
+      end do
+      call syslbl ('s025b0',idtg_fg,itaup,ggdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+
+!
+      call syslbl ('w00092',idtg_fg,itaup,ggdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'w00092 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('w00092',idtg_fg,itaup,ggdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'w00092 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+
+!
+      call syslbl ('b10200',idtg_fg,itaup,ggdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'b10200 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('b10200',idtg_fg,itaup,ggdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'b10200 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('b10210',idtg_fg,itaup,ggdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'b10210 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('b10210',idtg_fg,itaup,ggdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'b10210 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l015b0',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l015b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l015b0',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l015b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l015b1',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l015b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l015b1',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l015b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l01100',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l01100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l01100',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l01100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+       hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l025b0',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l025b1',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l02100',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l02100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l035b0',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l035b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l035b1',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l035b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l03100',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l03100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b0',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b0 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l045b0',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l045b0 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l025b1',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l025b1 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l045b1',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l045b1 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+      call syslbl ('l02100',idtg_fg,itaup,gmdef1,lrec)
+      call dmsread(im,jm,lrec,lenrec1,'H',ifilin,wkr,istat)
+      call vmnmx(im,jm,wkr,amn,imn,jmn,amx,imx,jmx)
+      print*,'l02100 before interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+      call xyintpo ('gg',im,jm,'gg',nx,my,wkr,hld1,0,xr,yr,first)
+      do j = 1, my
+      do i = 1, nx
+        hld1(i,j) = min( amx, max( amn, hld1(i,j) ) )
+      end do
+      end do
+      call syslbl ('l04100',idtg_fg,itaup,gmdef2,lrec)
+      call dmswrit(nx,my,lrec,lenrec2,'H',ifilout,hld1,istat)
+      call vmnmx(nx,my,hld1,amn,imn,jmn,amx,imx,jmx)
+      print*,'l04100 after interpo, amn,amx= ',amn,imn,jmn,amx,imx,jmx
+!
+ 1090 continue
+      end if
+!
+
+      call dmscls(bck,istat)
+      call dmscls(ifilin,istat)
+      call dmscls(ifilout,istat)
+
+!CWB2015 >>>
+      deallocate(pt,plt,pt2,plt2                        &
+               ,sgeo,plt2p                              &
+               ,sig,sig30,sig40,puvphi,irecfe           &
+               ,pk,pk2,presp                            &
+               ,tens,pkx,pk2x                           &
+               ,wkr,iwkr,xr,yr,zz                       &
+               ,hld1,fld1,fld2                          &
+               ,phi,wkpz,anlslp,t1000                   &
+               ,wkp,wkq,qsat,qsat2                      &
+               ,ihld                                    &
+               ,sigma,aki,bki)
+!CWB2015 <<<
+
+!     call dmsexit(0)
+!
+      stop'normal termination'
+      end program gm2gm_main
+
+
+      subroutine vmnmx(im,jm,a,amn,imn,jmn,amx,imx,jmx)
+      implicit none
+!
+      integer :: imn, jmn, im, jm, i, j, imx, jmx
+      real ::  a(im,jm), amx, amn 
+!
+      imn = 1
+      jmn = 1
+      imx = 1
+      jmx = 1
+      amn = a(1,1)
+      amx = a(1,1)
+!
+      do j = 1, jm
+      do i = 1, im
+       if( a(i,j) .lt. amn ) then
+        imn = i
+        jmn = j
+        amn = a(i,j)
+       end if
+       if( a(i,j) .gt. amx ) then
+        imx = i
+        jmx = j
+        amx = a(i,j)
+       end if
+      end do
+      end do
+!
+      return
+      end subroutine vmnmx
